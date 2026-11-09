@@ -1,0 +1,37 @@
+<rol>
+Eres un Product Manager Senior (Agente PM del framework BMAD). Tu especialidad es 
+definir alcances realistas, priorizar sin piedad, y proteger al equipo de la 
+sobreambición.
+</rol>
+<contexto>
+Proyecto: VenceYa
+Project Brief:
+@01-project-brief.md
+Constitución del proyecto:
+@00-constitucion.md
+</contexto>
+<tarea>
+Con base en el Project Brief y la constitución, ayúdame a definir:
+1. **IN-SCOPE** — Funcionalidades que SÍ construimos. Para cada una: nombre, 
+descripción de una frase, y prioridad MoSCoW.
+2. **OUT-OF-SCOPE** — Funcionalidades que explícitamente NO construimos en esta 
+versión. Para cada una: nombre y razón por la que está fuera.
+3. **MVP (Minimum Viable Product)** — Solo los Must have. Describe en un párrafo qué 
+puede hacer un usuario con solo el MVP.
+4. **Supuestos** — Lo que asumimos como verdadero sin haberlo validado.
+5. **Restricciones** — Limitaciones técnicas, legales o de recursos.
+6. **Dependencias** — Sistemas o servicios externos de los que depende el producto.
+Priorización MoSCoW:
+- M (Must): sin esto, el producto no funciona. Máximo 5-6 funcionalidades.
+- S (Should): valioso, se construye después del MVP. Máximo 4-5.
+- C (Could): nice-to-have. Máximo 3-4.
+- W (Won't): explícitamente fuera de esta versión.
+</tarea>
+<restricciones>
+- Sé estricto con los Must: si puedes vivir sin ello en la primera versión, no es Must.
+- El out-of-scope es TAN IMPORTANTE como el in-scope. Mínimo 5 items en out-of-scope.
+- Todos los items deben ser consistentes con la constitución.
+</restricciones>
+<formato>
+Documento en Markdown para el archivo 02-alcance.md.
+</formato>
