@@ -89,7 +89,7 @@ Para cada indicador se indica la fuente de la necesidad. Las metas son propuesta
 | K5 | Vencimientos avisados a tiempo | Porcentaje de cuotas que vencen con al menos un aviso aceptado para envío por Resend antes de su fecha efectiva de vencimiento. La aceptación no confirma la entrega al destinatario. | Medida informativa mientras el aviso sea manual; la meta se define cuando exista el aviso automático (alcance O16). |
 | K6 | Retirado (2026-11-07) | La conciliación bancaria queda fuera de esta versión (QA2-09; O19). Identificador reservado. | No aplica; se retira la meta. |
 | K7 | Reprogramaciones registradas | Número de reprogramaciones con fecha de nueva promesa de pago, por mes. | Registro del 100 % de reprogramaciones. |
-| K8 | Días promedio de cobro (DSO) | Promedio de días entre la emisión del comprobante y su cobro total. | Reducción frente a la línea base. |
+| K8 | Tiempo promedio de cobro de comprobantes saldados | Promedio simple global por empresa de días entre emisión y cobro total de comprobantes por cobrar saldados en el mes elegido, sin ponderar por importe. | Reducción frente a la línea base como señal informativa, interpretada junto con la cartera vencida y los plazos de crédito; no demuestra por sí sola mejora de cobranza. |
 
 **Línea base:** no disponible. Se medirá con las primeras pymes que participen.
 
