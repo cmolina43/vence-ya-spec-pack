@@ -1,0 +1,3820 @@
+openapi: 3.1.0
+info:
+  title: API de VenceYa
+  version: 1.0.0
+  summary: Contratos REST de VenceYa (cuentas por cobrar y por pagar de pymes peruanas).
+  description: |
+    Fuente oficial de los contratos REST de VenceYa. El resumen y el inventario de endpoints están en
+    `07-architecture.md` (sección 4, «API Contracts»). Este archivo y ese inventario deben contener exactamente
+    los mismos endpoints.
+
+    **Convenciones generales**
+
+    - **Prefijo y versión:** todas las rutas cuelgan de `/api/v1`.
+    - **Autenticación:** sesión opaca en servidor, transportada en la cookie `venceya_sesion`
+      (`HttpOnly`, `Secure`, `SameSite=Strict`). Toda operación que no sea GET exige además la cabecera
+      `X-Token-CSRF` con el valor recibido al iniciar sesión. Las operaciones internas del equipo de VenceYa
+      (`/interno/...`) usan un token de operaciones (`Authorization: Bearer`) y solo se publican en la red privada.
+    - **Sesiones (RN-149):** 30 minutos sin actividad y 12 horas absolutas. Las peticiones automáticas
+      (sondeos o refrescos) envían `X-Peticion-Automatica: true` y no renuevan la inactividad.
+    - **Aislamiento por empresa (PRINCIPIO-003, RN-008):** la empresa siempre sale de la sesión. Un recurso de
+      otra empresa responde `404` con el mismo cuerpo que un recurso inexistente.
+    - **Formato de error único:** esquema `Error` (`codigo`, `mensaje`, `detalles`, `idSolicitud`). Los mensajes
+      nunca repiten los valores ingresados ni contienen datos personales o importes (PRINCIPIO-005).
+    - **Códigos de estado:** `400` cuerpo JSON mal formado o parámetros de ruta o de consulta inválidos;
+      `401` sin sesión vigente o credenciales inválidas; `403` rol sin permiso (RN-060); `404` recurso
+      inexistente o de otra empresa; `409` conflicto con el estado vigente (duplicado, datos desactualizados,
+      estado que no lo permite, concurrencia); `422` el cuerpo incumple las reglas de contenido o de negocio
+      (RN-162 y demás). Un rechazo nunca deja efectos parciales (RN-160).
+    - **Paginación:** `pagina` (desde 1) y `tamanoPagina` (1 a 100, 20 por defecto); la respuesta trae
+      `elementos` y `paginacion`.
+    - **Importes:** cadena decimal canónica con punto decimal y sin separador de miles, hasta 12 dígitos
+      enteros y 2 decimales (`"1000.50"`). Las respuestas siempre usan 2 decimales. El formato peruano
+      `1,000.50` es responsabilidad exclusiva de la interfaz (RN-153). Moneda en ISO 4217: `PEN` (S/) o `USD` (US$).
+    - **Fechas:** fechas de negocio `AAAA-MM-DD` (`format: date`); instantes ISO 8601 con desfase de
+      America/Lima (`2026-11-09T08:15:30-05:00`). La fecha de cálculo la fija el servidor (RN-198).
+    - **Idioma:** rutas, campos, esquemas y `operationId` en español (PRINCIPIO-001). Los ejemplos usan datos
+      ficticios y correos del dominio `example.com` (PRINCIPIO-005).
+  contact:
+    name: Equipo de VenceYa
+    email: equipo@example.com
+servers:
+  - url: https://{host}/api/v1
+    description: Instalación en la nube o local (on-premise).
+    variables:
+      host:
+        default: api.example.com
+tags:
+  - name: Autenticacion
+    description: Activación de cuentas, inicio y cierre de sesión, recuperación de contraseña (HU-002).
+  - name: OperacionesInternas
+    description: Procedimientos del equipo de VenceYa; no disponibles para roles de empresa (HU-001).
+  - name: Usuarios
+    description: Administración de usuarios y roles de la empresa (HU-003).
+  - name: MiCuenta
+    description: Preferencias personales del usuario autenticado (HU-008).
+  - name: ConfiguracionEmpresa
+    description: Correo administrativo, moneda por defecto y listas de copias (HU-008, HU-009).
+  - name: Contactos
+    description: Catálogo de clientes y proveedores (HU-004).
+  - name: Comprobantes
+    description: Comprobantes a crédito y sus cuotas (HU-005, HU-007).
+  - name: Pagos
+    description: Registro y anulación de cobros y pagos (HU-006, HU-007).
+  - name: Reprogramaciones
+    description: Promesas de pago sobre cuotas (HU-011, Should S1).
+  - name: Panel
+    description: Panel de cartera y tiempo promedio de cobro (HU-008, HU-012).
+  - name: Avisos
+    description: Cuotas por avisar, envío de avisos y bandeja interna (HU-010).
+security:
+  - sesionCookie: []
+
+paths:
+  # ───────────────────────────── Autenticación (HU-002) ─────────────────────────────
+  /autenticacion/inicio-sesion:
+    post:
+      operationId: iniciarSesion
+      tags: [Autenticacion]
+      summary: Iniciar sesión con correo y contraseña
+      description: |
+        **HU-002.** Normaliza el correo (TRIM y minúsculas), localiza la cuenta por su referencia protegida y
+        verifica la contraseña (Argon2id) sin recortarla. Solo un usuario ACTIVO inicia sesión. Tras 5 fallos
+        consecutivos la cuenta queda bloqueada 15 minutos (RN-103); durante el bloqueo todo intento se rechaza sin
+        contarse ni prolongar el bloqueo. Correo inexistente, contraseña incorrecta, cuenta bloqueada, INVITADA o
+        DESACTIVADA reciben la misma respuesta `401`. Un inicio correcto reinicia el contador de fallos.
+        Responde con la cookie `venceya_sesion` y el token CSRF.
+        **Roles:** público.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudInicioSesion' }
+            examples:
+              correcto:
+                value: { correo: " Ana.Torres@Example.com ", contrasena: "cobranza segura 2026" }
+      responses:
+        '200':
+          description: Sesión iniciada.
+          headers:
+            Set-Cookie:
+              description: Cookie de sesión opaca (`HttpOnly; Secure; SameSite=Strict; Path=/api`).
+              schema: { type: string }
+              example: venceya_sesion=3q2+7w...; HttpOnly; Secure; SameSite=Strict; Path=/api
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SesionActual' }
+              examples:
+                administradora:
+                  $ref: '#/components/examples/SesionAdministradora'
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401':
+          description: Credenciales inválidas. Mismo cuerpo para correo inexistente, contraseña incorrecta, cuenta bloqueada o no ACTIVA.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                credencialesInvalidas:
+                  value:
+                    codigo: CREDENCIALES_INVALIDAS
+                    mensaje: El correo o la contraseña no son válidos.
+                    idSolicitud: 0b6f2c1e-6a51-4f0e-9d3b-2f8a7c1d9e10
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+
+  /autenticacion/cierre-sesion:
+    post:
+      operationId: cerrarSesion
+      tags: [Autenticacion]
+      summary: Cerrar la sesión actual
+      description: |
+        **HU-002.** Cierra la sesión vigente del dispositivo actual y elimina la cookie. Las demás sesiones del
+        usuario siguen abiertas.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/TokenCsrf'
+      responses:
+        '204':
+          description: Sesión cerrada.
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/CsrfInvalido' }
+
+  /autenticacion/sesion:
+    get:
+      operationId: obtenerSesionActual
+      tags: [Autenticacion]
+      summary: Obtener la sesión vigente
+      description: |
+        **HU-002.** Devuelve el usuario autenticado, su rol, su empresa, los plazos de la sesión y el token CSRF.
+        La SPA la usa al cargar. Con `X-Peticion-Automatica: true` no renueva el plazo de inactividad (RN-149).
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/PeticionAutomatica'
+      responses:
+        '200':
+          description: Sesión vigente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SesionActual' }
+              examples:
+                administradora:
+                  $ref: '#/components/examples/SesionAdministradora'
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /autenticacion/activacion:
+    post:
+      operationId: activarCuenta
+      tags: [Autenticacion]
+      summary: Activar la cuenta desde el enlace de invitación
+      description: |
+        **HU-002.** Canjea el token de invitación y define la contraseña. La vigencia (72 horas, límite exclusivo)
+        se comprueba al canjear con el reloj del servidor (RN-098). La contraseña tiene de 8 a 128 caracteres,
+        admite cualquier carácter, no se recorta ni normaliza y no puede estar vacía ni ser solo espacios
+        (RN-246 a RN-250). Un rechazo no consume el enlace y el usuario sigue INVITADO (RN-253). El usuario queda
+        ACTIVO; no inicia sesión automáticamente.
+        **Roles:** público (portador del enlace).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudActivacion' }
+            examples:
+              correcto:
+                value: { token: "inv_8sK2pQ7wZr4mN1xV6cB3", contrasena: "cobranza segura 2026" }
+      responses:
+        '204':
+          description: Cuenta activada.
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '422':
+          description: Enlace vencido, usado, revocado o inexistente, o contraseña inválida.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                enlaceVencido:
+                  value:
+                    codigo: ENLACE_VENCIDO
+                    mensaje: El enlace venció. Solicita a un administrador que reenvíe la invitación.
+                    idSolicitud: 2d1c4a9e-1f0b-4c8e-8a6d-3b5e7f9a1c20
+                contrasenaCorta:
+                  value:
+                    codigo: VALIDACION_FALLIDA
+                    mensaje: La solicitud tiene datos que no cumplen las reglas.
+                    detalles:
+                      - { campo: contrasena, codigo: LONGITUD_MINIMA, mensaje: La contraseña debe tener al menos 8 caracteres. }
+                    idSolicitud: 2d1c4a9e-1f0b-4c8e-8a6d-3b5e7f9a1c21
+
+  /autenticacion/recuperacion:
+    post:
+      operationId: solicitarRecuperacionContrasena
+      tags: [Autenticacion]
+      summary: Solicitar un enlace de recuperación de contraseña
+      description: |
+        **HU-002.** Responde siempre `202` con el mismo cuerpo, exista o no la cuenta y sea cual sea su estado
+        (RN-258). Solo envía el enlace (60 minutos) a un usuario ACTIVO. Emitir un enlace revoca el anterior
+        (RN-259). Máximo 3 envíos por usuario en 60 minutos; una solicitud sobre el límite no envía correo ni
+        revoca el enlace vigente (RN-260).
+        **Roles:** público.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudRecuperacion' }
+            examples:
+              solicitud:
+                value: { correo: "ana.torres@example.com" }
+      responses:
+        '202':
+          description: Respuesta neutra.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespuestaRecuperacion' }
+              examples:
+                neutra:
+                  value:
+                    mensaje: Si el correo pertenece a una cuenta activa, recibirás un enlace para restablecer tu contraseña
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+
+  /autenticacion/recuperacion/restablecimiento:
+    post:
+      operationId: restablecerContrasena
+      tags: [Autenticacion]
+      summary: Definir una nueva contraseña con el enlace de recuperación
+      description: |
+        **HU-002.** Canjea el token de recuperación (60 minutos, límite exclusivo, un solo uso) y guarda un hash
+        nuevo. Cierra todas las sesiones del usuario, desbloquea la cuenta y reinicia el contador de fallos
+        (RN-102, RN-103). Se rechaza si el usuario ya no está ACTIVO. Un rechazo conserva la contraseña anterior y
+        no consume el enlace (RN-253).
+        **Roles:** público (portador del enlace).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudRestablecimiento' }
+            examples:
+              correcto:
+                value: { token: "rec_Q9aT4xL2mW7pZ0cV5bN8", contrasenaNueva: "nueva clave larga 2026" }
+      responses:
+        '204':
+          description: Contraseña restablecida; todas las sesiones del usuario quedaron cerradas.
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '422':
+          description: Enlace no válido o contraseña inválida.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                enlaceNoValido:
+                  value:
+                    codigo: ENLACE_NO_VALIDO
+                    mensaje: El enlace no es válido o ya fue utilizado. Solicita uno nuevo.
+                    idSolicitud: 5e2a8c1d-7b3f-4d9a-9c0e-1a2b3c4d5e60
+
+  # ───────────────────────────── Operaciones internas (HU-001) ─────────────────────────────
+  /interno/empresas:
+    post:
+      operationId: registrarEmpresa
+      tags: [OperacionesInternas]
+      summary: Dar de alta una empresa y su primer administrador
+      description: |
+        **HU-001.** Procedimiento interno del equipo de VenceYa (RN-094, RN-095). Crea en una sola transacción la
+        empresa y su primer usuario ADMINISTRADOR en estado INVITADO con enlace de 72 horas (RN-211); después envía
+        la invitación por correo. Si el envío falla o no se confirma, la empresa y el usuario se conservan, no hay
+        reintento automático y el resultado se informa en `envioInvitacion` (QA-08).
+        Validaciones (RN-162): `razonSocial` con TRIM, espacios internos reducidos a uno y mayúsculas, de 1 a 250
+        caracteres, al menos una letra; letras, dígitos, espacios y `. , & - ' ( ) /`. `ruc`: exactamente 11
+        dígitos, tratado como texto (conserva ceros iniciales), único global por referencia protegida.
+        Correos con TRIM y minúsculas, máximo 250 caracteres. El correo del primer administrador es único global
+        entre usuarios de cualquier estado; el error no revela a qué empresa pertenece.
+        **Roles:** EQUIPO_VENCEYA (token de operaciones). Sin endpoint equivalente para roles de empresa.
+      x-roles: [EQUIPO_VENCEYA]
+      security:
+        - tokenOperaciones: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudAltaEmpresa' }
+            examples:
+              alta:
+                value:
+                  razonSocial: "  comercial   andina s.a.c. "
+                  ruc: "20123456789"
+                  correoAdministrativo: "admin.andina@example.com"
+                  correoPrimerAdministrador: " Ana.Torres@Example.com "
+      responses:
+        '201':
+          description: Empresa y primer administrador creados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespuestaAltaEmpresa' }
+              examples:
+                creada:
+                  value:
+                    empresa:
+                      id: 7
+                      razonSocial: COMERCIAL ANDINA S.A.C.
+                      ruc: "20123456789"
+                      correoAdministrativo: admin.andina@example.com
+                      creadaEn: "2026-11-09T09:00:00-05:00"
+                    primerAdministrador:
+                      id: 12
+                      correo: ana.torres@example.com
+                      rol: ADMINISTRADOR
+                      estado: INVITADO
+                    envioInvitacion:
+                      resultado: ENVIADO
+                      enlaceVenceEn: "2026-11-12T09:00:00-05:00"
+                correoRechazado:
+                  summary: Proveedor de correo rechazó el envío; la empresa queda creada.
+                  value:
+                    empresa:
+                      id: 7
+                      razonSocial: COMERCIAL ANDINA S.A.C.
+                      ruc: "20123456789"
+                      correoAdministrativo: admin.andina@example.com
+                      creadaEn: "2026-11-09T09:00:00-05:00"
+                    primerAdministrador:
+                      id: 12
+                      correo: ana.torres@example.com
+                      rol: ADMINISTRADOR
+                      estado: INVITADO
+                    envioInvitacion:
+                      resultado: RECHAZADO
+                      enlaceVenceEn: "2026-11-12T09:00:00-05:00"
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '409':
+          description: RUC ya registrado o correo del primer administrador ya registrado. No se crea nada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                rucDuplicado:
+                  value:
+                    codigo: RUC_YA_REGISTRADO
+                    mensaje: Ya existe una empresa con ese RUC.
+                    idSolicitud: 7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c40
+                correoDuplicado:
+                  value:
+                    codigo: CORREO_USUARIO_YA_REGISTRADO
+                    mensaje: El correo del primer administrador ya está registrado.
+                    idSolicitud: 7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c41
+        '422':
+          description: Datos inválidos (RUC, razón social o correos).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                rucInvalido:
+                  value:
+                    codigo: VALIDACION_FALLIDA
+                    mensaje: La solicitud tiene datos que no cumplen las reglas.
+                    detalles:
+                      - { campo: ruc, codigo: RUC_LONGITUD, mensaje: El RUC debe tener exactamente 11 dígitos. }
+                    idSolicitud: 7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c42
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /interno/empresas/{empresaId}/reenvio-invitacion-administrador:
+    post:
+      operationId: reenviarInvitacionPrimerAdministrador
+      tags: [OperacionesInternas]
+      summary: Reenviar la invitación del primer administrador
+      description: |
+        **HU-001.** Solo procede si el primer administrador sigue INVITADO y la empresa no tiene ningún
+        ADMINISTRADOR ACTIVO; ambas condiciones se comprueban al guardar (RN-095, RN-098, RN-160). Emite un enlace
+        nuevo de 72 horas y revoca el anterior en la misma operación. Audita quién lo hizo, el destinatario y la
+        fecha y hora, sin el enlace. No reactiva usuarios DESACTIVADOS.
+        **Roles:** EQUIPO_VENCEYA (token de operaciones).
+      x-roles: [EQUIPO_VENCEYA]
+      security:
+        - tokenOperaciones: []
+      parameters:
+        - $ref: '#/components/parameters/EmpresaId'
+      responses:
+        '200':
+          description: Invitación reenviada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespuestaReenvioInvitacion' }
+              examples:
+                reenviada:
+                  value:
+                    usuarioId: 12
+                    envioInvitacion:
+                      resultado: ENVIADO
+                      enlaceVenceEn: "2026-11-12T11:30:00-05:00"
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: El primer administrador ya está ACTIVO o DESACTIVADO, o la empresa ya tiene un ADMINISTRADOR ACTIVO.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                yaActivo:
+                  value:
+                    codigo: ESTADO_NO_PERMITE_OPERACION
+                    mensaje: El primer administrador no está en estado INVITADO.
+                    idSolicitud: 8b2c3d4e-5f6a-4b7c-9d8e-0f1a2b3c4d50
+                existeAdministradorActivo:
+                  value:
+                    codigo: EXISTE_ADMINISTRADOR_ACTIVO
+                    mensaje: La empresa ya tiene un administrador activo; el reenvío corresponde a ese administrador.
+                    idSolicitud: 8b2c3d4e-5f6a-4b7c-9d8e-0f1a2b3c4d51
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  # ───────────────────────────── Usuarios (HU-003) ─────────────────────────────
+  /usuarios:
+    get:
+      operationId: listarUsuarios
+      tags: [Usuarios]
+      summary: Listar los usuarios de la empresa
+      description: |
+        **HU-003, HU-009.** Lista paginada de usuarios de la empresa de la sesión, ordenada por correo. Se usa
+        también para elegir usuarios de las listas de copias (filtros `rol` y `estado`).
+        **Roles:** ADMINISTRADOR.
+      x-roles: [ADMINISTRADOR]
+      parameters:
+        - name: estado
+          in: query
+          schema: { $ref: '#/components/schemas/EstadoUsuario' }
+        - name: rol
+          in: query
+          schema: { $ref: '#/components/schemas/Rol' }
+        - $ref: '#/components/parameters/Pagina'
+        - $ref: '#/components/parameters/TamanoPagina'
+      responses:
+        '200':
+          description: Página de usuarios.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginaUsuarios' }
+              examples:
+                pagina:
+                  value:
+                    elementos:
+                      - id: 12
+                        correo: ana.torres@example.com
+                        rol: ADMINISTRADOR
+                        estado: ACTIVO
+                        tieneContrasena: true
+                        creadoEn: "2026-11-09T09:00:00-05:00"
+                        actualizadoEn: "2026-11-09T09:40:00-05:00"
+                        version: 2
+                      - id: 15
+                        correo: luis.ramos@example.com
+                        rol: OPERADOR
+                        estado: ACTIVO
+                        tieneContrasena: true
+                        creadoEn: "2026-11-09T10:00:00-05:00"
+                        actualizadoEn: "2026-11-09T10:20:00-05:00"
+                        version: 2
+                    paginacion: { pagina: 1, tamanoPagina: 20, totalElementos: 2, totalPaginas: 1 }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+    post:
+      operationId: invitarUsuario
+      tags: [Usuarios]
+      summary: Invitar un usuario con un rol
+      description: |
+        **HU-003.** Crea el usuario en la empresa de la sesión, en estado INVITADO, con exactamente un rol, y
+        envía un enlace de 72 horas. El administrador no conoce ni define la contraseña. El correo se normaliza y
+        es único global entre usuarios de cualquier estado (RN-097). Si el correo falla o no se confirma, el
+        usuario queda creado y `envioInvitacion` lo informa; no hay reintento automático (QA-08).
+        **Roles:** ADMINISTRADOR.
+      x-roles: [ADMINISTRADOR]
+      parameters:
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudInvitacion' }
+            examples:
+              operador:
+                value: { correo: " Luis.Ramos@Example.com ", rol: OPERADOR }
+      responses:
+        '201':
+          description: Usuario invitado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespuestaInvitacion' }
+              examples:
+                enviada:
+                  value:
+                    usuario:
+                      id: 15
+                      correo: luis.ramos@example.com
+                      rol: OPERADOR
+                      estado: INVITADO
+                      tieneContrasena: false
+                      creadoEn: "2026-11-09T10:00:00-05:00"
+                      actualizadoEn: "2026-11-09T10:00:00-05:00"
+                      version: 1
+                    envioInvitacion: { resultado: ENVIADO, enlaceVenceEn: "2026-11-12T10:00:00-05:00" }
+                sinConfirmar:
+                  summary: El proveedor de correo agotó el tiempo de espera.
+                  value:
+                    usuario:
+                      id: 15
+                      correo: luis.ramos@example.com
+                      rol: OPERADOR
+                      estado: INVITADO
+                      tieneContrasena: false
+                      creadoEn: "2026-11-09T10:00:00-05:00"
+                      actualizadoEn: "2026-11-09T10:00:00-05:00"
+                      version: 1
+                    envioInvitacion: { resultado: SIN_CONFIRMAR, enlaceVenceEn: "2026-11-12T10:00:00-05:00" }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '409':
+          description: El correo ya pertenece a un usuario (de esta u otra empresa, en cualquier estado).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                correoDuplicado:
+                  value:
+                    codigo: CORREO_USUARIO_YA_REGISTRADO
+                    mensaje: El correo ya está registrado.
+                    idSolicitud: 9c3d4e5f-6a7b-4c8d-0e9f-1a2b3c4d5e60
+        '422':
+          description: Correo sin formato válido o rol inexistente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                rolInvalido:
+                  value:
+                    codigo: VALIDACION_FALLIDA
+                    mensaje: La solicitud tiene datos que no cumplen las reglas.
+                    detalles:
+                      - { campo: rol, codigo: VALOR_NO_PERMITIDO, mensaje: "El rol debe ser ADMINISTRADOR, SUPERVISOR u OPERADOR." }
+                    idSolicitud: 9c3d4e5f-6a7b-4c8d-0e9f-1a2b3c4d5e61
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /usuarios/{usuarioId}:
+    get:
+      operationId: obtenerUsuario
+      tags: [Usuarios]
+      summary: Obtener un usuario de la empresa
+      description: |
+        **HU-003.** Devuelve el usuario si pertenece a la empresa de la sesión; si no, `404`.
+        **Roles:** ADMINISTRADOR.
+      x-roles: [ADMINISTRADOR]
+      parameters:
+        - $ref: '#/components/parameters/UsuarioId'
+      responses:
+        '200':
+          description: Usuario.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+              examples:
+                ana:
+                  $ref: '#/components/examples/UsuarioAna'
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /usuarios/{usuarioId}/rol:
+    put:
+      operationId: cambiarRolUsuario
+      tags: [Usuarios]
+      summary: Cambiar el rol de un usuario
+      description: |
+        **HU-003.** Reemplaza el rol. Un cambio efectivo cierra todas las sesiones del afectado y se audita
+        (administrador, afectado, empresa, rol anterior, rol nuevo, fecha y hora) en la misma transacción (RN-161).
+        Guardar el mismo rol no cierra sesiones ni se audita (`200` sin cambios). Se rechaza si deja a la empresa
+        sin ADMINISTRADOR ACTIVO (RN-100). `version` aplica control de concurrencia optimista.
+        **Roles:** ADMINISTRADOR.
+      x-roles: [ADMINISTRADOR]
+      parameters:
+        - $ref: '#/components/parameters/UsuarioId'
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudCambioRol' }
+            examples:
+              aSupervisor:
+                value: { rol: SUPERVISOR, version: 2 }
+      responses:
+        '200':
+          description: Rol guardado (o sin cambios si era el mismo).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespuestaCambioRol' }
+              examples:
+                cambiado:
+                  value:
+                    usuario:
+                      id: 15
+                      correo: luis.ramos@example.com
+                      rol: SUPERVISOR
+                      estado: ACTIVO
+                      tieneContrasena: true
+                      creadoEn: "2026-11-09T10:00:00-05:00"
+                      actualizadoEn: "2026-11-09T15:00:00-05:00"
+                      version: 3
+                    cambioEfectivo: true
+                    sesionesCerradas: 2
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: Último administrador activo o datos desactualizados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                ultimoAdministrador:
+                  value:
+                    codigo: ULTIMO_ADMINISTRADOR_ACTIVO
+                    mensaje: La empresa debe conservar al menos un administrador activo.
+                    idSolicitud: 0d4e5f6a-7b8c-4d9e-1f0a-2b3c4d5e6f70
+                desactualizado:
+                  $ref: '#/components/examples/ErrorDatosDesactualizados'
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /usuarios/{usuarioId}/desactivacion:
+    post:
+      operationId: desactivarUsuario
+      tags: [Usuarios]
+      summary: Desactivar un usuario
+      description: |
+        **HU-003.** El usuario pasa a DESACTIVADO, pierde todas sus sesiones y se revocan sus enlaces vigentes en
+        la misma operación. Conserva su identidad en los registros históricos. No existe eliminación de usuarios.
+        Se rechaza si es el último ADMINISTRADOR ACTIVO (RN-100). Deja de recibir copias de avisos (RN-135).
+        **Roles:** ADMINISTRADOR.
+      x-roles: [ADMINISTRADOR]
+      parameters:
+        - $ref: '#/components/parameters/UsuarioId'
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudConVersion' }
+            examples:
+              desactivar:
+                value: { version: 3 }
+      responses:
+        '200':
+          description: Usuario desactivado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+              examples:
+                desactivado:
+                  value:
+                    id: 15
+                    correo: luis.ramos@example.com
+                    rol: OPERADOR
+                    estado: DESACTIVADO
+                    tieneContrasena: true
+                    creadoEn: "2026-11-09T10:00:00-05:00"
+                    actualizadoEn: "2026-11-09T16:00:00-05:00"
+                    version: 4
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: Ya desactivado, último administrador activo o datos desactualizados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                ultimoAdministrador:
+                  value:
+                    codigo: ULTIMO_ADMINISTRADOR_ACTIVO
+                    mensaje: La empresa debe conservar al menos un administrador activo.
+                    idSolicitud: 1e5f6a7b-8c9d-4e0f-2a1b-3c4d5e6f7a80
+                yaDesactivado:
+                  value:
+                    codigo: ESTADO_NO_PERMITE_OPERACION
+                    mensaje: El usuario ya está desactivado.
+                    idSolicitud: 1e5f6a7b-8c9d-4e0f-2a1b-3c4d5e6f7a81
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /usuarios/{usuarioId}/reactivacion:
+    post:
+      operationId: reactivarUsuario
+      tags: [Usuarios]
+      summary: Reactivar un usuario desactivado
+      description: |
+        **HU-003.** Si el usuario ya había definido contraseña, vuelve a ACTIVO con ella, sin correo. Si nunca la
+        definió, pasa a INVITADO con un enlace nuevo de 72 horas (RN-098, RN-099); `envioInvitacion` informa el
+        resultado del correo.
+        **Roles:** ADMINISTRADOR.
+      x-roles: [ADMINISTRADOR]
+      parameters:
+        - $ref: '#/components/parameters/UsuarioId'
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudConVersion' }
+            examples:
+              reactivar:
+                value: { version: 4 }
+      responses:
+        '200':
+          description: Usuario reactivado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespuestaReactivacion' }
+              examples:
+                conContrasena:
+                  value:
+                    usuario:
+                      id: 15
+                      correo: luis.ramos@example.com
+                      rol: OPERADOR
+                      estado: ACTIVO
+                      tieneContrasena: true
+                      creadoEn: "2026-11-09T10:00:00-05:00"
+                      actualizadoEn: "2026-11-09T17:00:00-05:00"
+                      version: 5
+                    envioInvitacion: null
+                sinContrasena:
+                  value:
+                    usuario:
+                      id: 16
+                      correo: marta.quispe@example.com
+                      rol: OPERADOR
+                      estado: INVITADO
+                      tieneContrasena: false
+                      creadoEn: "2026-11-05T10:00:00-05:00"
+                      actualizadoEn: "2026-11-09T17:00:00-05:00"
+                      version: 3
+                    envioInvitacion: { resultado: ENVIADO, enlaceVenceEn: "2026-11-12T17:00:00-05:00" }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: El usuario no está DESACTIVADO o datos desactualizados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                noDesactivado:
+                  value:
+                    codigo: ESTADO_NO_PERMITE_OPERACION
+                    mensaje: Solo se puede reactivar un usuario desactivado.
+                    idSolicitud: 2f6a7b8c-9d0e-4f1a-3b2c-4d5e6f7a8b90
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /usuarios/{usuarioId}/reenvio-invitacion:
+    post:
+      operationId: reenviarInvitacion
+      tags: [Usuarios]
+      summary: Reenviar la invitación de un usuario INVITADO
+      description: |
+        **HU-003.** Emite un enlace nuevo de 72 horas y revoca el anterior en la misma operación, haya vencido o
+        no. Solo para usuarios INVITADOS.
+        **Roles:** ADMINISTRADOR.
+      x-roles: [ADMINISTRADOR]
+      parameters:
+        - $ref: '#/components/parameters/UsuarioId'
+        - $ref: '#/components/parameters/TokenCsrf'
+      responses:
+        '200':
+          description: Invitación reenviada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespuestaReenvioInvitacion' }
+              examples:
+                reenviada:
+                  value:
+                    usuarioId: 15
+                    envioInvitacion: { resultado: ENVIADO, enlaceVenceEn: "2026-11-12T18:00:00-05:00" }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: El usuario no está INVITADO.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                noInvitado:
+                  value:
+                    codigo: ESTADO_NO_PERMITE_OPERACION
+                    mensaje: Solo se puede reenviar la invitación a un usuario invitado.
+                    idSolicitud: 3a7b8c9d-0e1f-4a2b-4c3d-5e6f7a8b9c00
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  # ───────────────────────────── Mi cuenta (HU-008) ─────────────────────────────
+  /mi-cuenta/preferencias:
+    get:
+      operationId: obtenerMisPreferencias
+      tags: [MiCuenta]
+      summary: Obtener mis preferencias personales
+      description: |
+        **HU-008.** Preferencias del usuario de la sesión: moneda del panel y ventana de proyección. Ningún
+        usuario puede ver las de otro (RN-170). Incluye los valores efectivos que resultan de aplicar la moneda
+        por defecto de la empresa y la ventana de 7 días.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR (solo las propias).
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      responses:
+        '200':
+          description: Preferencias.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Preferencias' }
+              examples:
+                sinPreferencias:
+                  value: { monedaPreferida: null, ventanaProyeccionDias: null, monedaEfectiva: PEN, ventanaEfectivaDias: 7 }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+    put:
+      operationId: actualizarMisPreferencias
+      tags: [MiCuenta]
+      summary: Actualizar mis preferencias personales
+      description: |
+        **HU-008.** Guarda la moneda preferida (`PEN`, `USD` o `null` para usar la de la empresa) y la ventana
+        de proyección (7, 10 o 15; `null` para 7 por defecto) (RN-169, RN-180). Solo afecta al usuario de la
+        sesión; no hay ruta para modificar las de otro usuario (RN-171).
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR (solo las propias).
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudPreferencias' }
+            examples:
+              dolaresQuinceDias:
+                value: { monedaPreferida: USD, ventanaProyeccionDias: 15 }
+      responses:
+        '200':
+          description: Preferencias guardadas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Preferencias' }
+              examples:
+                guardadas:
+                  value: { monedaPreferida: USD, ventanaProyeccionDias: 15, monedaEfectiva: USD, ventanaEfectivaDias: 15 }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '422':
+          description: Ventana fuera de 7, 10 o 15, o moneda no admitida.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                ventanaInvalida:
+                  value:
+                    codigo: VALIDACION_FALLIDA
+                    mensaje: La solicitud tiene datos que no cumplen las reglas.
+                    detalles:
+                      - { campo: ventanaProyeccionDias, codigo: VALOR_NO_PERMITIDO, mensaje: "La ventana debe ser de 7, 10 o 15 días." }
+                    idSolicitud: 4b8c9d0e-1f2a-4b3c-5d4e-6f7a8b9c0d10
+
+  # ───────────────────────────── Configuración de empresa (HU-008, HU-009) ─────────────────────────────
+  /empresa/configuracion:
+    get:
+      operationId: obtenerConfiguracionEmpresa
+      tags: [ConfiguracionEmpresa]
+      summary: Obtener la configuración de la empresa
+      description: |
+        **HU-008, HU-009.** Razón social, RUC, correo administrativo y moneda por defecto de la empresa de la
+        sesión.
+        **Roles:** ADMINISTRADOR.
+      x-roles: [ADMINISTRADOR]
+      responses:
+        '200':
+          description: Configuración.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfiguracionEmpresa' }
+              examples:
+                actual:
+                  value:
+                    razonSocial: COMERCIAL ANDINA S.A.C.
+                    ruc: "20123456789"
+                    correoAdministrativo: admin.andina@example.com
+                    monedaPorDefecto: PEN
+                    version: 1
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+    patch:
+      operationId: actualizarConfiguracionEmpresa
+      tags: [ConfiguracionEmpresa]
+      summary: Cambiar el correo administrativo o la moneda por defecto
+      description: |
+        **HU-008, HU-009.** Cambia `correoAdministrativo` (TRIM, minúsculas, formato válido, máximo 250) y/o
+        `monedaPorDefecto`. Audita valor anterior, nuevo, usuario y fecha y hora; las copias persistidas del
+        correo se cifran (PRINCIPIO-004). Los avisos ya enviados no cambian; los nuevos usan el correo vigente
+        como copia y dirección de respuesta (RN-104).
+        **Roles:** ADMINISTRADOR.
+      x-roles: [ADMINISTRADOR]
+      parameters:
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudConfiguracionEmpresa' }
+            examples:
+              cambioCorreo:
+                value: { correoAdministrativo: "cobranzas.andina@example.com", version: 1 }
+              cambioMoneda:
+                value: { monedaPorDefecto: USD, version: 2 }
+      responses:
+        '200':
+          description: Configuración guardada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfiguracionEmpresa' }
+              examples:
+                guardada:
+                  value:
+                    razonSocial: COMERCIAL ANDINA S.A.C.
+                    ruc: "20123456789"
+                    correoAdministrativo: cobranzas.andina@example.com
+                    monedaPorDefecto: PEN
+                    version: 2
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '409':
+          description: Datos desactualizados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                desactualizado:
+                  $ref: '#/components/examples/ErrorDatosDesactualizados'
+        '422':
+          description: Correo vacío o sin formato válido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                correoInvalido:
+                  value:
+                    codigo: VALIDACION_FALLIDA
+                    mensaje: La solicitud tiene datos que no cumplen las reglas.
+                    detalles:
+                      - { campo: correoAdministrativo, codigo: FORMATO_CORREO, mensaje: El correo administrativo no tiene formato válido. }
+                    idSolicitud: 5c9d0e1f-2a3b-4c4d-6e5f-7a8b9c0d1e20
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /empresa/listas-copias:
+    get:
+      operationId: obtenerListasCopias
+      tags: [ConfiguracionEmpresa]
+      summary: Obtener las listas de copias de avisos
+      description: |
+        **HU-009.** Listas de usuarios en copia para avisos por cobrar y por pagar. Un miembro que fue
+        desactivado o pasó a OPERADOR aparece con `recibeCopias: false` hasta que se quite o recupere un rol y
+        estado válidos (RN-135).
+        **Roles:** ADMINISTRADOR.
+      x-roles: [ADMINISTRADOR]
+      responses:
+        '200':
+          description: Listas de copias.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListasCopias' }
+              examples:
+                listas:
+                  value:
+                    porCobrar:
+                      - usuarioId: 18
+                        correo: jefe.cobranzas@example.com
+                        rol: SUPERVISOR
+                        estado: ACTIVO
+                        recibeCopias: true
+                        agregadoEn: "2026-11-09T11:00:00-05:00"
+                    porPagar: []
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+
+  /empresa/listas-copias/{sentido}/usuarios:
+    post:
+      operationId: agregarUsuarioListaCopias
+      tags: [ConfiguracionEmpresa]
+      summary: Agregar un usuario a una lista de copias
+      description: |
+        **HU-009.** Agrega un SUPERVISOR o ADMINISTRADOR ACTIVO de la empresa a la lista indicada. No se admiten
+        direcciones escritas a mano, OPERADORES ni usuarios INVITADOS o DESACTIVADOS. Un usuario de otra empresa
+        responde igual que uno inexistente (`404`). Audita usuario agregado, lista, administrador y fecha y hora.
+        **Roles:** ADMINISTRADOR.
+      x-roles: [ADMINISTRADOR]
+      parameters:
+        - $ref: '#/components/parameters/SentidoLista'
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudAgregarCopia' }
+            examples:
+              supervisor:
+                value: { usuarioId: 18 }
+      responses:
+        '201':
+          description: Usuario agregado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListasCopias' }
+              examples:
+                agregado:
+                  value:
+                    porCobrar:
+                      - usuarioId: 18
+                        correo: jefe.cobranzas@example.com
+                        rol: SUPERVISOR
+                        estado: ACTIVO
+                        recibeCopias: true
+                        agregadoEn: "2026-11-09T11:00:00-05:00"
+                    porPagar: []
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: El usuario ya está en la lista.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                yaEnLista:
+                  value:
+                    codigo: USUARIO_YA_EN_LISTA
+                    mensaje: El usuario ya está en la lista de copias.
+                    idSolicitud: 6d0e1f2a-3b4c-4d5e-7f6a-8b9c0d1e2f30
+        '422':
+          description: El usuario no es SUPERVISOR o ADMINISTRADOR ACTIVO.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                noElegible:
+                  value:
+                    codigo: USUARIO_NO_ELEGIBLE_COPIAS
+                    mensaje: Solo se pueden agregar supervisores o administradores activos.
+                    idSolicitud: 6d0e1f2a-3b4c-4d5e-7f6a-8b9c0d1e2f31
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /empresa/listas-copias/{sentido}/usuarios/{usuarioId}:
+    delete:
+      operationId: quitarUsuarioListaCopias
+      tags: [ConfiguracionEmpresa]
+      summary: Quitar un usuario de una lista de copias
+      description: |
+        **HU-009.** Quita al usuario de la lista indicada y audita el retiro. La lista puede quedar vacía; los
+        avisos ya enviados conservan sus destinatarios.
+        **Roles:** ADMINISTRADOR.
+      x-roles: [ADMINISTRADOR]
+      parameters:
+        - $ref: '#/components/parameters/SentidoLista'
+        - $ref: '#/components/parameters/UsuarioId'
+        - $ref: '#/components/parameters/TokenCsrf'
+      responses:
+        '204':
+          description: Usuario quitado.
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  # ───────────────────────────── Contactos (HU-004) ─────────────────────────────
+  /contactos:
+    get:
+      operationId: listarContactos
+      tags: [Contactos]
+      summary: Listar o buscar contactos
+      description: |
+        **HU-004, HU-005.** Lista paginada del catálogo de la empresa, ordenada por nombre. `busqueda` filtra por
+        coincidencia parcial del nombre (el correo cifrado no admite búsqueda parcial). `seleccionables=true`
+        devuelve solo contactos ACTIVOS, para registrar comprobantes.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - name: busqueda
+          in: query
+          description: Texto parcial del nombre (se compara en mayúsculas).
+          schema: { type: string, maxLength: 250 }
+        - name: estado
+          in: query
+          schema: { $ref: '#/components/schemas/EstadoContacto' }
+        - name: seleccionables
+          in: query
+          schema: { type: boolean, default: false }
+        - $ref: '#/components/parameters/Pagina'
+        - $ref: '#/components/parameters/TamanoPagina'
+      responses:
+        '200':
+          description: Página de contactos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginaContactos' }
+              examples:
+                pagina:
+                  value:
+                    elementos:
+                      - id: 42
+                        nombre: DISTRIBUIDORA LIMA
+                        correo: ventas.distlima@example.com
+                        telefono: null
+                        direccion: null
+                        estado: ACTIVO
+                        tieneComprobantes: false
+                        creadoEn: "2026-11-09T09:30:00-05:00"
+                        actualizadoEn: "2026-11-09T09:30:00-05:00"
+                        version: 1
+                    paginacion: { pagina: 1, tamanoPagina: 20, totalElementos: 1, totalPaginas: 1 }
+                vacia:
+                  value:
+                    elementos: []
+                    paginacion: { pagina: 1, tamanoPagina: 20, totalElementos: 0, totalPaginas: 0 }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+    post:
+      operationId: crearContacto
+      tags: [Contactos]
+      summary: Crear un contacto
+      description: |
+        **HU-004.** Registra un contacto ACTIVO. `nombre`: TRIM, espacios internos reducidos a uno, mayúsculas,
+        1 a 250 caracteres, al menos una letra; letras (con tilde, ñ, ü), dígitos, espacios y `. , & - ' ( ) /`
+        (RN-162). `correo`: TRIM, minúsculas, formato válido con dominio con punto, 1 a 250 caracteres, único en la
+        empresa incluidos los DESACTIVADOS (RN-127). `telefono` y `direccion` opcionales. No se piden DNI, RUC,
+        cuenta ni CCI. Correo, teléfono y dirección se cifran (PRINCIPIO-004).
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudContacto' }
+            examples:
+              minimo:
+                value: { nombre: "  Distribuidora   Lima  ", correo: " Ventas.DistLima@Example.com " }
+      responses:
+        '201':
+          description: Contacto creado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contacto' }
+              examples:
+                creado:
+                  $ref: '#/components/examples/ContactoDistribuidora'
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '409':
+          description: El correo ya pertenece a otro contacto de la empresa.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                correoDuplicado:
+                  $ref: '#/components/examples/ErrorCorreoContactoDuplicado'
+        '422':
+          description: Nombre o correo inválidos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                nombreSinLetras:
+                  value:
+                    codigo: VALIDACION_FALLIDA
+                    mensaje: La solicitud tiene datos que no cumplen las reglas.
+                    detalles:
+                      - { campo: nombre, codigo: SIN_LETRAS, mensaje: El nombre debe contener al menos una letra. }
+                    idSolicitud: 7e1f2a3b-4c5d-4e6f-8a7b-9c0d1e2f3a40
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /contactos/{contactoId}:
+    get:
+      operationId: obtenerContacto
+      tags: [Contactos]
+      summary: Obtener un contacto
+      description: |
+        **HU-004.** Detalle del contacto de la empresa de la sesión; de otra empresa, `404`.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/ContactoId'
+      responses:
+        '200':
+          description: Contacto.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contacto' }
+              examples:
+                contacto:
+                  $ref: '#/components/examples/ContactoDistribuidora'
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    patch:
+      operationId: editarContacto
+      tags: [Contactos]
+      summary: Editar un contacto
+      description: |
+        **HU-004.** Cambia nombre, correo, teléfono o dirección de un contacto ACTIVO o DESACTIVADO, con las mismas
+        validaciones del registro (RN-129). Guarda por cada campo cambiado el valor anterior, el nuevo, el usuario
+        y la fecha y hora; las copias de campos cifrados se guardan cifradas. `telefono` o `direccion` en `null`
+        los borra. Los avisos posteriores usan el correo nuevo.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/ContactoId'
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudEdicionContacto' }
+            examples:
+              telefono:
+                value: { telefono: "912345678", version: 1 }
+      responses:
+        '200':
+          description: Contacto editado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contacto' }
+              examples:
+                editado:
+                  value:
+                    id: 42
+                    nombre: DISTRIBUIDORA LIMA
+                    correo: ventas.distlima@example.com
+                    telefono: "912345678"
+                    direccion: null
+                    estado: ACTIVO
+                    tieneComprobantes: true
+                    creadoEn: "2026-11-09T09:30:00-05:00"
+                    actualizadoEn: "2026-11-09T12:00:00-05:00"
+                    version: 2
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: Correo duplicado en la empresa o datos desactualizados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                correoDuplicado:
+                  $ref: '#/components/examples/ErrorCorreoContactoDuplicado'
+                desactualizado:
+                  $ref: '#/components/examples/ErrorDatosDesactualizados'
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+    delete:
+      operationId: eliminarContacto
+      tags: [Contactos]
+      summary: Eliminar un contacto sin comprobantes
+      description: |
+        **HU-004.** Elimina el contacto solo si no tiene ningún comprobante, incluidos los anulados (RN-130). La
+        interfaz pide confirmación antes de llamar. La comprobación y la eliminación son atómicas frente al
+        registro concurrente de un comprobante (RN-160). Libera el correo para un contacto nuevo. El tratamiento
+        de su historial de ediciones está pendiente (pregunta 51, QA-13).
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/ContactoId'
+        - $ref: '#/components/parameters/TokenCsrf'
+      responses:
+        '204':
+          description: Contacto eliminado.
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: El contacto tiene comprobantes; se ofrece desactivarlo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                conComprobantes:
+                  value:
+                    codigo: CONTACTO_CON_COMPROBANTES
+                    mensaje: El contacto tiene comprobantes registrados y no puede eliminarse. Puedes desactivarlo.
+                    idSolicitud: 8f2a3b4c-5d6e-4f7a-9b8c-0d1e2f3a4b50
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /contactos/{contactoId}/desactivacion:
+    post:
+      operationId: desactivarContacto
+      tags: [Contactos]
+      summary: Desactivar un contacto
+      description: |
+        **HU-004.** El contacto pasa a DESACTIVADO: deja de ser seleccionable para comprobantes nuevos, pero sus
+        cuotas con saldo siguen en la lista de cuotas por avisar.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/ContactoId'
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudConVersion' }
+            examples:
+              desactivar:
+                value: { version: 2 }
+      responses:
+        '200':
+          description: Contacto desactivado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contacto' }
+              examples:
+                desactivado:
+                  value:
+                    id: 42
+                    nombre: DISTRIBUIDORA LIMA
+                    correo: ventas.distlima@example.com
+                    telefono: "912345678"
+                    direccion: null
+                    estado: DESACTIVADO
+                    tieneComprobantes: true
+                    creadoEn: "2026-11-09T09:30:00-05:00"
+                    actualizadoEn: "2026-11-09T13:00:00-05:00"
+                    version: 3
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: Ya desactivado o datos desactualizados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                yaDesactivado:
+                  value:
+                    codigo: ESTADO_NO_PERMITE_OPERACION
+                    mensaje: El contacto ya está desactivado.
+                    idSolicitud: 9a3b4c5d-6e7f-4a8b-0c9d-1e2f3a4b5c60
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /contactos/{contactoId}/reactivacion:
+    post:
+      operationId: reactivarContacto
+      tags: [Contactos]
+      summary: Reactivar un contacto
+      description: |
+        **HU-004.** El contacto vuelve a ACTIVO y a ser seleccionable.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/ContactoId'
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudConVersion' }
+            examples:
+              reactivar:
+                value: { version: 3 }
+      responses:
+        '200':
+          description: Contacto reactivado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contacto' }
+              examples:
+                reactivado:
+                  value:
+                    id: 42
+                    nombre: DISTRIBUIDORA LIMA
+                    correo: ventas.distlima@example.com
+                    telefono: "912345678"
+                    direccion: null
+                    estado: ACTIVO
+                    tieneComprobantes: true
+                    creadoEn: "2026-11-09T09:30:00-05:00"
+                    actualizadoEn: "2026-11-09T14:00:00-05:00"
+                    version: 4
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: Ya activo o datos desactualizados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                yaActivo:
+                  value:
+                    codigo: ESTADO_NO_PERMITE_OPERACION
+                    mensaje: El contacto ya está activo.
+                    idSolicitud: 0b4c5d6e-7f8a-4b9c-1d0e-2f3a4b5c6d70
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  # ───────────────────────────── Comprobantes y cuotas (HU-005, HU-007) ─────────────────────────────
+  /comprobantes/propuesta-cuotas:
+    post:
+      operationId: proponerCuotas
+      tags: [Comprobantes]
+      summary: Calcular la propuesta de cuotas
+      description: |
+        **HU-005.** Cálculo puro sin persistencia (RN-015). `CUOTAS`: de 2 a 120 cuotas mensuales; la cuota 1 vence
+        un mes calendario después de la emisión y las siguientes el mismo día (o el último día del mes si no
+        existe). Importes proporcionales en céntimos; el residuo va a la última cuota (S/ 1,000.00 en 3 →
+        333.33, 333.33, 333.34). La cantidad no puede superar los céntimos del total. `PAGO_UNICO`: una cuota con
+        `fechaVencimiento`. La fecha de emisión no puede ser posterior a la fecha de cálculo.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudPropuestaCuotas' }
+            examples:
+              tresCuotas:
+                value: { total: "1000.00", moneda: PEN, fechaEmision: "2026-11-04", modalidad: CUOTAS, cantidadCuotas: 3 }
+      responses:
+        '200':
+          description: Propuesta de cuotas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PropuestaCuotas' }
+              examples:
+                tresCuotas:
+                  value:
+                    cuotas:
+                      - { numero: 1, importe: "333.33", fechaVencimiento: "2026-12-04" }
+                      - { numero: 2, importe: "333.33", fechaVencimiento: "2027-01-04" }
+                      - { numero: 3, importe: "333.34", fechaVencimiento: "2027-02-04" }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '422':
+          description: Cantidad de cuotas inválida o superior a los céntimos del total, o fechas inválidas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                maximoCuotas:
+                  value:
+                    codigo: VALIDACION_FALLIDA
+                    mensaje: La solicitud tiene datos que no cumplen las reglas.
+                    detalles:
+                      - { campo: cantidadCuotas, codigo: CUOTAS_SUPERAN_CENTIMOS, mensaje: Para este total el máximo posible es 2 cuotas. }
+                    idSolicitud: 1c5d6e7f-8a9b-4c0d-2e1f-3a4b5c6d7e80
+
+  /comprobantes:
+    get:
+      operationId: listarComprobantes
+      tags: [Comprobantes]
+      summary: Listar comprobantes
+      description: |
+        **HU-005.** Lista paginada de comprobantes de la empresa, ordenada por fecha de emisión descendente.
+        Excluye anulados salvo `incluirAnulados=true`.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - name: sentido
+          in: query
+          schema: { $ref: '#/components/schemas/Sentido' }
+        - name: contactoId
+          in: query
+          schema: { type: integer, format: int64, minimum: 1 }
+        - name: numeroDocumento
+          in: query
+          description: Coincidencia exacta tras TRIM y mayúsculas.
+          schema: { type: string, maxLength: 30 }
+        - name: incluirAnulados
+          in: query
+          schema: { type: boolean, default: false }
+        - $ref: '#/components/parameters/Pagina'
+        - $ref: '#/components/parameters/TamanoPagina'
+      responses:
+        '200':
+          description: Página de comprobantes.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginaComprobantes' }
+              examples:
+                pagina:
+                  value:
+                    elementos:
+                      - id: 501
+                        contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
+                        sentido: POR_COBRAR
+                        numeroDocumento: F001-00045
+                        moneda: USD
+                        total: "3000.00"
+                        saldo: "3000.00"
+                        fechaEmision: "2026-11-04"
+                        cantidadCuotas: 3
+                        estado: VIGENTE
+                    paginacion: { pagina: 1, tamanoPagina: 20, totalElementos: 1, totalPaginas: 1 }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+    post:
+      operationId: registrarComprobante
+      tags: [Comprobantes]
+      summary: Registrar un comprobante con sus cuotas
+      description: |
+        **HU-005.** Registra el comprobante y todas sus cuotas en una transacción. Validaciones: contacto ACTIVO de
+        la empresa (`404` si es de otra o no existe; `422` si está DESACTIVADO); `numeroDocumento` con TRIM y
+        mayúsculas, 1 a 30 caracteres (letras, dígitos, `-` y `_`, sin espacios); único entre no anulados por
+        empresa en `POR_COBRAR` y por proveedor en `POR_PAGAR` (índice único parcial); moneda `PEN` o `USD` sin
+        conversión; total mayor que 0 y hasta 999999999999.99; emisión no posterior a la fecha de cálculo;
+        cuotas de 1 a 120, con vencimientos posteriores a la emisión y estrictamente crecientes, y suma igual al
+        total (el sistema no ajusta cuotas) (RN-015 a RN-020, RN-131 a RN-133, RN-153, RN-154).
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudComprobante' }
+            examples:
+              enCuotasUsd:
+                value:
+                  contactoId: 42
+                  sentido: POR_COBRAR
+                  numeroDocumento: " f001-00045 "
+                  moneda: USD
+                  total: "3000.00"
+                  fechaEmision: "2026-11-04"
+                  modalidad: CUOTAS
+                  cuotas:
+                    - { numero: 1, importe: "1000.00", fechaVencimiento: "2026-12-04" }
+                    - { numero: 2, importe: "1000.00", fechaVencimiento: "2027-01-04" }
+                    - { numero: 3, importe: "1000.00", fechaVencimiento: "2027-02-04" }
+              pagoUnico:
+                value:
+                  contactoId: 42
+                  sentido: POR_PAGAR
+                  numeroDocumento: E001-00120
+                  moneda: PEN
+                  total: "1500.00"
+                  fechaEmision: "2026-11-09"
+                  modalidad: PAGO_UNICO
+                  cuotas:
+                    - { numero: 1, importe: "1500.00", fechaVencimiento: "2026-12-15" }
+      responses:
+        '201':
+          description: Comprobante registrado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Comprobante' }
+              examples:
+                registrado:
+                  $ref: '#/components/examples/ComprobanteF00145'
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: Número de documento duplicado entre comprobantes no anulados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                duplicado:
+                  $ref: '#/components/examples/ErrorComprobanteDuplicado'
+        '422':
+          description: Datos inválidos o reglas de cuotas incumplidas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                sumaDiferente:
+                  value:
+                    codigo: VALIDACION_FALLIDA
+                    mensaje: La solicitud tiene datos que no cumplen las reglas.
+                    detalles:
+                      - { campo: cuotas, codigo: SUMA_CUOTAS_DIFERENTE_TOTAL, mensaje: "La suma de las cuotas difiere del total en 66.67." }
+                    idSolicitud: 2d6e7f8a-9b0c-4d1e-3f2a-4b5c6d7e8f90
+                contactoDesactivado:
+                  value:
+                    codigo: VALIDACION_FALLIDA
+                    mensaje: La solicitud tiene datos que no cumplen las reglas.
+                    detalles:
+                      - { campo: contactoId, codigo: CONTACTO_DESACTIVADO, mensaje: El contacto está desactivado. }
+                    idSolicitud: 2d6e7f8a-9b0c-4d1e-3f2a-4b5c6d7e8f91
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /comprobantes/{comprobanteId}:
+    get:
+      operationId: obtenerComprobante
+      tags: [Comprobantes]
+      summary: Obtener un comprobante con sus cuotas
+      description: |
+        **HU-005, HU-006, HU-007.** Detalle con cuotas, saldos y estados calculados con la fecha de cálculo del
+        servidor. `editable` indica si admite edición (no anulado, sin pagos ni reprogramaciones nunca).
+        `anulable` indica si no tiene pagos vigentes.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/ComprobanteId'
+      responses:
+        '200':
+          description: Comprobante.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Comprobante' }
+              examples:
+                comprobante:
+                  $ref: '#/components/examples/ComprobanteF00145'
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    patch:
+      operationId: editarComprobante
+      tags: [Comprobantes]
+      summary: Editar un comprobante sin pagos
+      description: |
+        **HU-005.** Permitido solo si el comprobante no está anulado y nunca tuvo pagos (ni anulados) ni
+        reprogramaciones (RN-081, RN-082). Puede cambiar contacto, número de documento, moneda, fecha de emisión,
+        total y cuotas (si se envía `cuotas`, reemplaza la lista completa). Aplica las mismas validaciones del
+        registro y guarda por cada campo cambiado el valor anterior, el nuevo, el usuario y la fecha y hora
+        (RN-083). `version` detecta cambios concurrentes (`DATOS_DESACTUALIZADOS`, RN-160). El sentido no se edita.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/ComprobanteId'
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudEdicionComprobante' }
+            examples:
+              cambioVencimiento:
+                value:
+                  version: 1
+                  cuotas:
+                    - { numero: 1, importe: "1000.00", fechaVencimiento: "2026-12-04" }
+                    - { numero: 2, importe: "1000.00", fechaVencimiento: "2027-01-10" }
+                    - { numero: 3, importe: "1000.00", fechaVencimiento: "2027-02-04" }
+      responses:
+        '200':
+          description: Comprobante editado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Comprobante' }
+              examples:
+                editado:
+                  $ref: '#/components/examples/ComprobanteF00145'
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: No editable (anulado, con pagos o reprogramaciones), duplicado o datos desactualizados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                conPagos:
+                  value:
+                    codigo: COMPROBANTE_NO_EDITABLE
+                    mensaje: El comprobante tiene pagos registrados o está anulado y no puede editarse.
+                    idSolicitud: 3e7f8a9b-0c1d-4e2f-4a3b-5c6d7e8f9a00
+                duplicado:
+                  $ref: '#/components/examples/ErrorComprobanteDuplicado'
+                desactualizado:
+                  $ref: '#/components/examples/ErrorDatosDesactualizados'
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /comprobantes/{comprobanteId}/anulacion:
+    post:
+      operationId: anularComprobante
+      tags: [Comprobantes]
+      summary: Anular un comprobante sin pagos vigentes
+      description: |
+        **HU-007.** Crea un registro de anulación separado (motivo, usuario, fecha y hora). Solo si no tiene pagos
+        vigentes (sin pagos o con todos anulados). El comprobante queda ANULADO, sus cuotas ANULADAS y de solo
+        lectura; dejan de sumar en cartera, indicadores y avisos. Total e irreversible. `motivo`: TRIM (incluye
+        tabulaciones, saltos de línea y espacios no separables), mayúsculas, espacios internos conservados, 1 a
+        500 caracteres (RN-162, RN-030). La comprobación de pagos y la anulación son atómicas frente a un pago
+        concurrente (RN-062, RN-160).
+        **Roles:** SUPERVISOR, ADMINISTRADOR.
+      x-roles: [SUPERVISOR, ADMINISTRADOR]
+      parameters:
+        - $ref: '#/components/parameters/ComprobanteId'
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudAnulacion' }
+            examples:
+              anular:
+                value: { motivo: "Registrado por error" }
+      responses:
+        '201':
+          description: Comprobante anulado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Anulacion' }
+              examples:
+                anulado:
+                  value:
+                    id: 71
+                    motivo: REGISTRADO POR ERROR
+                    anuladoPor: { id: 18, correo: jefe.cobranzas@example.com }
+                    anuladoEn: "2026-11-09T15:30:00-05:00"
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: Ya anulado o con pagos vigentes.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                conPagosVigentes:
+                  value:
+                    codigo: COMPROBANTE_CON_PAGOS_VIGENTES
+                    mensaje: El comprobante tiene pagos vigentes. Anula primero sus pagos.
+                    idSolicitud: 4f8a9b0c-1d2e-4f3a-5b4c-6d7e8f9a0b10
+                yaAnulado:
+                  value:
+                    codigo: YA_ANULADO
+                    mensaje: El comprobante ya está anulado.
+                    idSolicitud: 4f8a9b0c-1d2e-4f3a-5b4c-6d7e8f9a0b11
+        '422':
+          description: Motivo vacío o de más de 500 caracteres. El mensaje no repite el texto ingresado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                motivoVacio:
+                  $ref: '#/components/examples/ErrorMotivoVacio'
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  # ───────────────────────────── Cuotas y pagos (HU-006, HU-007) ─────────────────────────────
+  /cuotas/{cuotaId}:
+    get:
+      operationId: obtenerCuota
+      tags: [Pagos]
+      summary: Obtener una cuota con su saldo vigente
+      description: |
+        **HU-006, HU-011.** Consulta autorizada del saldo y estado vigentes (la que usa la interfaz tras un
+        rechazo `IMPORTE_SUPERA_SALDO`). Incluye `version` para el control de concurrencia de pagos y
+        reprogramaciones y `fechaMinimaPago` (mayor fecha de pagos vigentes o la emisión).
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/CuotaId'
+      responses:
+        '200':
+          description: Cuota.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DetalleCuota' }
+              examples:
+                cuota:
+                  value:
+                    id: 9001
+                    comprobanteId: 501
+                    numeroDocumento: F001-00045
+                    sentido: POR_COBRAR
+                    contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
+                    numero: 1
+                    moneda: PEN
+                    importe: "1000.00"
+                    saldo: "600.00"
+                    vencimientoOriginal: "2026-11-03"
+                    fechaEfectivaVencimiento: "2026-11-03"
+                    estado: VENCIDA
+                    diasAtraso: 6
+                    reprogramada: false
+                    fechaMinimaPago: "2026-11-08"
+                    fechaCalculo: "2026-11-09"
+                    version: 4
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /cuotas/{cuotaId}/pagos:
+    get:
+      operationId: listarPagosCuota
+      tags: [Pagos]
+      summary: Listar los pagos de una cuota
+      description: |
+        **HU-006, HU-007.** Pagos de la cuota, vigentes y anulados, ordenados por fecha de pago y orden de registro.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/CuotaId'
+      responses:
+        '200':
+          description: Pagos de la cuota.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Pago' }
+              examples:
+                pagos:
+                  value:
+                    - id: 1001
+                      cuotaId: 9001
+                      importe: "400.00"
+                      moneda: PEN
+                      fechaPago: "2026-11-09"
+                      estado: VIGENTE
+                      registradoPor: { id: 15, correo: luis.ramos@example.com }
+                      creadoEn: "2026-11-09T11:05:12-05:00"
+                      anulacion: null
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    post:
+      operationId: registrarPago
+      tags: [Pagos]
+      summary: Registrar un cobro o pago sobre una cuota
+      description: |
+        **HU-006.** Registra un pago confirmado e inmutable (RN-063, PRINCIPIO-006) sobre una sola cuota.
+        Reglas: importe mayor que 0, en la moneda de la cuota, no mayor que el saldo vigente
+        (`IMPORTE_SUPERA_SALDO`, sin reparto entre cuotas, RN-092); fecha de pago no anterior a la emisión, no
+        posterior a la fecha de cálculo y no anterior a la mayor fecha de los pagos vigentes (se admite la misma
+        fecha, RN-089); el comprobante no debe estar anulado. Guarda la fecha de pago y, aparte, la fecha y hora de
+        creación. Si el saldo queda en 0, la cuota pasa a CANCELADA; el vencimiento acordado no cambia (RN-088).
+        **Idempotencia (RN-156):** la cabecera `Clave-Idempotencia` es obligatoria y estable entre reintentos.
+        Repetir la misma clave con los mismos datos devuelve `200` con el pago original, sin crear otro; con datos
+        distintos, `409 CLAVE_IDEMPOTENCIA_REUTILIZADA`. **Concurrencia:** la cuota se bloquea al guardar; `versionCuota`
+        distinta de la vigente responde `409 DATOS_DESACTUALIZADOS` sin consumir la clave (RN-160).
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/CuotaId'
+        - $ref: '#/components/parameters/ClaveIdempotencia'
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudPago' }
+            examples:
+              parcial:
+                value: { importe: "400.00", moneda: PEN, fechaPago: "2026-11-09", versionCuota: 3 }
+      responses:
+        '201':
+          description: Pago registrado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespuestaPago' }
+              examples:
+                registrado:
+                  $ref: '#/components/examples/RespuestaPago1001'
+        '200':
+          description: Reintento de una operación ya completada (misma clave y mismos datos); devuelve el pago original.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespuestaPago' }
+              examples:
+                repetido:
+                  $ref: '#/components/examples/RespuestaPago1001'
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: Comprobante anulado, datos desactualizados (incluido el pago concurrente) o clave reutilizada con otros datos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                desactualizado:
+                  $ref: '#/components/examples/ErrorDatosDesactualizados'
+                claveReutilizada:
+                  value:
+                    codigo: CLAVE_IDEMPOTENCIA_REUTILIZADA
+                    mensaje: La clave de operación ya se usó con otros datos.
+                    idSolicitud: 5a9b0c1d-2e3f-4a4b-6c5d-7e8f9a0b1c20
+                comprobanteAnulado:
+                  value:
+                    codigo: COMPROBANTE_ANULADO
+                    mensaje: El comprobante está anulado y es de solo lectura.
+                    idSolicitud: 5a9b0c1d-2e3f-4a4b-6c5d-7e8f9a0b1c21
+        '422':
+          description: Importe o fecha de pago inválidos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                superaSaldo:
+                  value:
+                    codigo: IMPORTE_SUPERA_SALDO
+                    mensaje: El importe supera el saldo de la cuota. Consulta el saldo vigente.
+                    idSolicitud: 5a9b0c1d-2e3f-4a4b-6c5d-7e8f9a0b1c22
+                fechaAnterior:
+                  value:
+                    codigo: VALIDACION_FALLIDA
+                    mensaje: La solicitud tiene datos que no cumplen las reglas.
+                    detalles:
+                      - { campo: fechaPago, codigo: FECHA_ANTERIOR_A_ULTIMO_PAGO, mensaje: La fecha de pago es anterior al último pago vigente de la cuota. }
+                    idSolicitud: 5a9b0c1d-2e3f-4a4b-6c5d-7e8f9a0b1c23
+                monedaDistinta:
+                  value:
+                    codigo: VALIDACION_FALLIDA
+                    mensaje: La solicitud tiene datos que no cumplen las reglas.
+                    detalles:
+                      - { campo: moneda, codigo: MONEDA_DISTINTA_CUOTA, mensaje: La moneda del pago debe ser la de la cuota. }
+                    idSolicitud: 5a9b0c1d-2e3f-4a4b-6c5d-7e8f9a0b1c24
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /pagos/{pagoId}/anulacion:
+    post:
+      operationId: anularPago
+      tags: [Pagos]
+      summary: Anular un pago
+      description: |
+        **HU-007.** Crea un registro de anulación que referencia el pago, con motivo, usuario y fecha y hora; el
+        pago no se modifica (PRINCIPIO-006). El saldo y el estado de la cuota se recalculan (la cuota CANCELADA
+        vuelve a PENDIENTE o VENCIDA según su fecha efectiva). Total, irreversible y única: dos anulaciones
+        simultáneas producen una sola (índice único sobre `pagoId`). Mismas reglas de `motivo` que la anulación
+        de comprobantes.
+        **Roles:** SUPERVISOR, ADMINISTRADOR.
+      x-roles: [SUPERVISOR, ADMINISTRADOR]
+      parameters:
+        - $ref: '#/components/parameters/PagoId'
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudAnulacion' }
+            examples:
+              anular:
+                value: { motivo: "Importe digitado erróneamente" }
+      responses:
+        '201':
+          description: Pago anulado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespuestaAnulacionPago' }
+              examples:
+                anulado:
+                  value:
+                    anulacion:
+                      id: 88
+                      motivo: IMPORTE DIGITADO ERRÓNEAMENTE
+                      anuladoPor: { id: 18, correo: jefe.cobranzas@example.com }
+                      anuladoEn: "2026-11-09T16:10:00-05:00"
+                    pagoId: 1001
+                    cuota: { id: 9001, saldo: "1000.00", estado: VENCIDA, version: 5 }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: El pago ya está anulado o su comprobante está anulado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                yaAnulado:
+                  value:
+                    codigo: YA_ANULADO
+                    mensaje: El pago ya está anulado.
+                    idSolicitud: 6b0c1d2e-3f4a-4b5c-7d6e-8f9a0b1c2d30
+        '422':
+          description: Motivo inválido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                motivoVacio:
+                  $ref: '#/components/examples/ErrorMotivoVacio'
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  # ───────────────────────────── Reprogramaciones (HU-011, Should S1) ─────────────────────────────
+  /cuotas/{cuotaId}/promesas:
+    get:
+      operationId: listarPromesasCuota
+      tags: [Reprogramaciones]
+      summary: Listar las promesas de pago de una cuota
+      description: |
+        **HU-011 (Should S1, posterior al MVP).** Historial de promesas de la cuota, de la más reciente a la más
+        antigua. El estado ACTIVA, CUMPLIDA o INCUMPLIDA se calcula con la fecha de cálculo; REEMPLAZADA es
+        persistente. Mientras S1 no se entregue, la ruta responde `404`.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/CuotaId'
+      responses:
+        '200':
+          description: Promesas de la cuota.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PromesaPago' }
+              examples:
+                historial:
+                  value:
+                    - id: 301
+                      fechaPrometida: "2026-11-30"
+                      estado: ACTIVA
+                      registradaPor: { id: 15, correo: luis.ramos@example.com }
+                      registradaEn: "2026-11-15T10:00:00-05:00"
+                    - id: 300
+                      fechaPrometida: "2026-11-20"
+                      estado: REEMPLAZADA
+                      registradaPor: { id: 15, correo: luis.ramos@example.com }
+                      registradaEn: "2026-11-08T10:00:00-05:00"
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    post:
+      operationId: reprogramarCuota
+      tags: [Reprogramaciones]
+      summary: Reprogramar una cuota con promesa de pago
+      description: |
+        **HU-011 (Should S1, posterior al MVP).** Registra una promesa ACTIVA sin aprobación previa; la anterior
+        queda REEMPLAZADA y el vencimiento original se conserva. Condiciones al guardar: saldo mayor que 0,
+        comprobante no anulado, `fechaPrometida` posterior a la fecha efectiva vigente y no anterior a la fecha de
+        cálculo (RN-033, RN-080, RN-118). La cuota queda marcada como reprogramada. `versionCuota` detecta un pago
+        concurrente (RN-160). Una sola promesa ACTIVA por cuota (índice único parcial).
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/CuotaId'
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudReprogramacion' }
+            examples:
+              reprogramar:
+                value: { fechaPrometida: "2026-11-20", versionCuota: 4 }
+      responses:
+        '201':
+          description: Promesa registrada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespuestaReprogramacion' }
+              examples:
+                registrada:
+                  value:
+                    promesa:
+                      id: 300
+                      fechaPrometida: "2026-11-20"
+                      estado: ACTIVA
+                      registradaPor: { id: 15, correo: luis.ramos@example.com }
+                      registradaEn: "2026-11-08T10:00:00-05:00"
+                    cuota:
+                      id: 9001
+                      vencimientoOriginal: "2026-11-10"
+                      fechaEfectivaVencimiento: "2026-11-20"
+                      estado: PENDIENTE
+                      reprogramada: true
+                      version: 5
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: Cuota sin saldo, comprobante anulado o datos desactualizados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                sinSaldo:
+                  value:
+                    codigo: CUOTA_SIN_SALDO
+                    mensaje: La cuota no tiene saldo pendiente y no puede reprogramarse.
+                    idSolicitud: 7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e40
+                desactualizado:
+                  $ref: '#/components/examples/ErrorDatosDesactualizados'
+        '422':
+          description: Fecha inexistente, con formato distinto de AAAA-MM-DD, no posterior a la fecha efectiva o anterior a la fecha de cálculo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                noPosterior:
+                  value:
+                    codigo: VALIDACION_FALLIDA
+                    mensaje: La solicitud tiene datos que no cumplen las reglas.
+                    detalles:
+                      - { campo: fechaPrometida, codigo: FECHA_NO_POSTERIOR_A_EFECTIVA, mensaje: La nueva fecha debe ser posterior a la fecha efectiva de vencimiento. }
+                    idSolicitud: 7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e41
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  # ───────────────────────────── Panel (HU-008, HU-012) ─────────────────────────────
+  /panel:
+    get:
+      operationId: obtenerPanelCartera
+      tags: [Panel]
+      summary: Obtener el panel de cartera con proyección y movimientos
+      description: |
+        **HU-008.** Una sola respuesta con un único corte (RN-205, RN-206), leída en una transacción
+        `REPEATABLE READ`: cuatro indicadores, proyección por día y listado completo de movimientos (una fila por
+        cuota), todo en una sola moneda; nunca se suman monedas. Moneda: parámetro `moneda`, si no la preferencia
+        personal, si no la de la empresa, si no `PEN` (RN-105); el parámetro no se guarda como preferencia
+        (RN-172). Ventana: parámetro `ventanaDias`, si no la preferencia, si no 7 (RN-180). La proyección va
+        desde la fecha de cálculo, incluye todos los días (en 0.00 si no hay vencimientos) y suma saldos por
+        fecha efectiva, con cobros y pagos separados. El listado se ordena por fecha efectiva de vencimiento
+        ascendente y excluye anulados salvo `incluirAnulados=true`, que nunca altera indicadores ni proyección.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - name: moneda
+          in: query
+          schema: { $ref: '#/components/schemas/Moneda' }
+        - name: ventanaDias
+          in: query
+          schema: { type: integer, enum: [7, 10, 15] }
+        - name: incluirAnulados
+          in: query
+          schema: { type: boolean, default: false }
+        - $ref: '#/components/parameters/PeticionAutomatica'
+      responses:
+        '200':
+          description: Panel de cartera.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PanelCartera' }
+              examples:
+                panel:
+                  value:
+                    corte: "2026-11-04T08:15:30-05:00"
+                    fechaCalculo: "2026-11-04"
+                    moneda: PEN
+                    origenMoneda: EMPRESA
+                    otraMoneda: { moneda: USD, tieneCuotasVencidas: true }
+                    indicadores:
+                      vencidaPorCobrar: "4500.00"
+                      vencidaPorPagar: "0.00"
+                      pendienteCobro: "8000.00"
+                      pendientePago: "2000.00"
+                    proyeccion:
+                      ventanaDias: 7
+                      dias:
+                        - { fecha: "2026-11-04", cobros: "0.00", pagos: "0.00" }
+                        - { fecha: "2026-11-05", cobros: "0.00", pagos: "0.00" }
+                        - { fecha: "2026-11-06", cobros: "600.00", pagos: "300.00" }
+                        - { fecha: "2026-11-07", cobros: "0.00", pagos: "0.00" }
+                        - { fecha: "2026-11-08", cobros: "0.00", pagos: "0.00" }
+                        - { fecha: "2026-11-09", cobros: "0.00", pagos: "0.00" }
+                        - { fecha: "2026-11-10", cobros: "0.00", pagos: "0.00" }
+                    incluyeAnulados: false
+                    movimientos:
+                      - cuotaId: 9001
+                        comprobanteId: 501
+                        numeroDocumento: F001-00045
+                        sentido: POR_COBRAR
+                        contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
+                        numeroCuota: 1
+                        totalCuotas: 3
+                        moneda: PEN
+                        importe: "1000.00"
+                        saldo: "600.00"
+                        vencimientoOriginal: "2026-11-06"
+                        fechaEfectivaVencimiento: "2026-11-06"
+                        estado: PENDIENTE
+                        diasAtraso: 0
+                        reprogramada: false
+                        comprobanteAnulado: false
+        '400':
+          description: Parámetro de consulta inválido (por ejemplo, `ventanaDias=30`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                ventanaInvalida:
+                  value:
+                    codigo: SOLICITUD_INVALIDA
+                    mensaje: La solicitud no tiene el formato esperado.
+                    detalles:
+                      - { campo: ventanaDias, codigo: VALOR_NO_PERMITIDO, mensaje: "La ventana debe ser de 7, 10 o 15 días." }
+                    idSolicitud: 8d2e3f4a-5b6c-4d7e-9f8a-0b1c2d3e4f50
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /panel/tiempo-promedio-cobro:
+    get:
+      operationId: obtenerTiempoPromedioCobro
+      tags: [Panel]
+      summary: Obtener el tiempo promedio de cobro de comprobantes saldados
+      description: |
+        **HU-012 (Should S5, posterior al MVP).** Promedio simple global de la empresa de los días entre emisión
+        y cobro total de los comprobantes por cobrar no anulados cuyo último pago que los saldó cae en el mes
+        indicado (America/Lima). Incluye ambas monedas; independiente del selector de moneda. Redondeo mitad hacia
+        arriba a 2 decimales, una sola vez sobre el promedio (RN-053, RN-147). `mes` por defecto: último mes
+        completo. Se admiten meses anteriores y el actual (`mesEnCurso: true`); un mes futuro responde `422`.
+        Sin comprobantes elegibles: `sinDatos: true` y `valorDias: null`. Sin filtro por cliente o proveedor.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - name: mes
+          in: query
+          description: Mes en formato AAAA-MM.
+          schema: { type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$' }
+          example: "2026-10"
+      responses:
+        '200':
+          description: Indicador del mes.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TiempoPromedioCobro' }
+              examples:
+                octubre:
+                  value:
+                    mes: "2026-10"
+                    mesEnCurso: false
+                    sinDatos: false
+                    valorDias: "37.50"
+                    cantidadComprobantes: 2
+                    corte: "2026-11-06T09:00:00-05:00"
+                    fechaCalculo: "2026-11-06"
+                sinDatos:
+                  value:
+                    mes: "2026-09"
+                    mesEnCurso: false
+                    sinDatos: true
+                    valorDias: null
+                    cantidadComprobantes: 0
+                    corte: "2026-11-06T09:00:00-05:00"
+                    fechaCalculo: "2026-11-06"
+        '400':
+          description: Mes con formato inválido (por ejemplo, `2026-13` u `octubre`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                mesInvalido:
+                  value:
+                    codigo: SOLICITUD_INVALIDA
+                    mensaje: La solicitud no tiene el formato esperado.
+                    detalles:
+                      - { campo: mes, codigo: FORMATO_MES, mensaje: El mes debe tener el formato AAAA-MM. }
+                    idSolicitud: 9e3f4a5b-6c7d-4e8f-0a9b-1c2d3e4f5a60
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '422':
+          description: Mes futuro.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                mesFuturo:
+                  value:
+                    codigo: MES_FUTURO
+                    mensaje: No se puede consultar un mes futuro.
+                    idSolicitud: 9e3f4a5b-6c7d-4e8f-0a9b-1c2d3e4f5a61
+
+  # ───────────────────────────── Avisos (HU-010) ─────────────────────────────
+  /avisos/cuotas-por-avisar:
+    get:
+      operationId: listarCuotasPorAvisar
+      tags: [Avisos]
+      summary: Listar las cuotas por avisar
+      description: |
+        **HU-010, HU-011.** Lista completa (sin ventana) de cuotas PENDIENTES y VENCIDAS con saldo, por cobrar y por
+        pagar, de comprobantes no anulados, incluidas las de contactos DESACTIVADOS; mismo orden que el listado del
+        panel. Cada fila trae el tipo de aviso que corresponde hoy, el último aviso «Enviado» (fecha y usuario), si
+        hay un intento sin confirmar y, con S1, la promesa activa (RN-036).
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - name: sentido
+          in: query
+          schema: { $ref: '#/components/schemas/Sentido' }
+        - $ref: '#/components/parameters/PeticionAutomatica'
+      responses:
+        '200':
+          description: Cuotas por avisar.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListaCuotasPorAvisar' }
+              examples:
+                lista:
+                  value:
+                    corte: "2026-11-07T09:00:00-05:00"
+                    fechaCalculo: "2026-11-07"
+                    cuotas:
+                      - cuotaId: 9002
+                        comprobanteId: 501
+                        numeroDocumento: F001-00045
+                        numeroCuota: 2
+                        sentido: POR_COBRAR
+                        contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
+                        moneda: PEN
+                        saldo: "1000.00"
+                        fechaEfectivaVencimiento: "2026-11-03"
+                        estado: VENCIDA
+                        diasAtraso: 4
+                        tipoAviso: COBRAR_VENCIDA
+                        ultimoAviso:
+                          enviadoEn: "2026-11-05T10:00:00-05:00"
+                          enviadoPor: { id: 12, correo: ana.torres@example.com }
+                          mismaFechaYTipo: true
+                        intentoSinConfirmarId: null
+                        promesaActiva: null
+                vacia:
+                  value:
+                    corte: "2026-11-07T09:00:00-05:00"
+                    fechaCalculo: "2026-11-07"
+                    cuotas: []
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /avisos/vista-previa:
+    post:
+      operationId: prepararAviso
+      tags: [Avisos]
+      summary: Preparar un aviso y mostrar sus destinatarios
+      description: |
+        **HU-010.** Sin efectos persistentes. Recalcula la aptitud de las cuotas, las agrupa en un correo por
+        contacto y tipo de aviso (RN-214) y devuelve destinatarios (para: contacto; copias: correo administrativo
+        y lista de copias del sentido, sin duplicados; responder a: correo administrativo) que el usuario no puede
+        modificar. `firmaDestinatarios` es una firma opaca del servidor que debe reenviarse al confirmar.
+        Informa las cuotas excluidas y las que requieren confirmar «Reenviar aviso».
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudVistaPreviaAviso' }
+            examples:
+              dosCuotas:
+                value: { cuotaIds: [9001, 9002], comentario: "Favor confirmar fecha de pago" }
+      responses:
+        '200':
+          description: Vista previa.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VistaPreviaAviso' }
+              examples:
+                vistaPrevia:
+                  value:
+                    correos:
+                      - contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
+                        tipoAviso: COBRAR_VENCIDA
+                        cuotaIds: [9001, 9002]
+                        destinatarios:
+                          para: [ventas.distlima@example.com]
+                          copias: [admin.andina@example.com, jefe.cobranzas@example.com]
+                          responderA: admin.andina@example.com
+                    cuotasExcluidas: []
+                    cuotasConAvisoPrevio:
+                      - cuotaId: 9002
+                        enviadoEn: "2026-11-05T10:00:00-05:00"
+                        enviadoPor: { id: 12, correo: ana.torres@example.com }
+                    advertenciaNoVerificable: false
+                    firmaDestinatarios: "fd_1b9e6c2a7d4f"
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: Alguna cuota tiene un intento sin confirmar del mismo tipo y fecha efectiva.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                sinConfirmar:
+                  $ref: '#/components/examples/ErrorIntentoSinConfirmar'
+        '422':
+          description: Comentario de más de 500 caracteres, selección vacía o ninguna cuota apta.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                sinCuotasAptas:
+                  $ref: '#/components/examples/ErrorSinCuotasAptas'
+
+  /avisos/envios:
+    post:
+      operationId: enviarAviso
+      tags: [Avisos]
+      summary: Confirmar y enviar un aviso
+      description: |
+        **HU-010.** Envío manual (RN-215). Al confirmar, el servidor obtiene de nuevo la fecha de cálculo, recalcula
+        aptitud, tipo de aviso y destinatarios (RN-212, RN-213). Si los destinatarios cambiaron respecto de
+        `firmaDestinatarios`, no envía y responde `409 DESTINATARIOS_CAMBIARON` con la nueva vista previa. Si alguna
+        cuota tiene un aviso «Enviado» para la misma fecha efectiva y tipo, exige `confirmarReenvio: true`.
+        Por cada correo (contacto y tipo) guarda el intento SIN_CONFIRMAR con su contenido, cuotas y destinatarios
+        cifrados **antes** de llamar a Resend, con una clave de idempotencia propia; la comprobación de que no hay
+        otro intento sin confirmar de esas cuotas y el guardado son atómicos (RN-158). Luego registra ACEPTADO,
+        RECHAZADO o deja SIN_CONFIRMAR (tiempo de espera). Solo ACEPTADO marca las cuotas «Enviado». Sin reintentos
+        automáticos. `comentario`: opcional, TRIM, mayúsculas, máximo 500; solo espacios equivale a sin comentario.
+        En entornos de prueba todo correo se redirige al buzón de prueba (RN-013).
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/TokenCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudEnvioAviso' }
+            examples:
+              confirmarReenvio:
+                value:
+                  cuotaIds: [9001, 9002]
+                  comentario: "Favor confirmar fecha de pago"
+                  firmaDestinatarios: "fd_1b9e6c2a7d4f"
+                  confirmarReenvio: true
+                  aceptarAdvertenciaNoVerificable: false
+      responses:
+        '201':
+          description: Intentos registrados con su resultado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespuestaEnvioAviso' }
+              examples:
+                aceptado:
+                  value:
+                    intentos:
+                      - id: 3001
+                        estado: ACEPTADO
+                        tipoAviso: COBRAR_VENCIDA
+                        contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
+                        cuotas:
+                          - { cuotaId: 9001, numeroDocumento: F001-00045, numeroCuota: 1, fechaEfectivaVencimiento: "2026-11-03", moneda: PEN, saldoAlEnvio: "600.00" }
+                          - { cuotaId: 9002, numeroDocumento: F001-00045, numeroCuota: 2, fechaEfectivaVencimiento: "2026-11-03", moneda: PEN, saldoAlEnvio: "1000.00" }
+                        comentario: FAVOR CONFIRMAR FECHA DE PAGO
+                        destinatarios:
+                          para: [ventas.distlima@example.com]
+                          copias: [admin.andina@example.com, jefe.cobranzas@example.com]
+                          responderA: admin.andina@example.com
+                        creadoPor: { id: 15, correo: luis.ramos@example.com }
+                        creadoEn: "2026-11-07T09:05:00-05:00"
+                        resueltoEn: "2026-11-07T09:05:01-05:00"
+                        verificableHasta: "2026-11-08T09:05:00-05:00"
+                    cuotasExcluidas: []
+                rechazado:
+                  value:
+                    intentos:
+                      - id: 3002
+                        estado: RECHAZADO
+                        tipoAviso: COBRAR_VENCIDA
+                        contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
+                        cuotas:
+                          - { cuotaId: 9001, numeroDocumento: F001-00045, numeroCuota: 1, fechaEfectivaVencimiento: "2026-11-03", moneda: PEN, saldoAlEnvio: "600.00" }
+                        comentario: null
+                        destinatarios:
+                          para: [ventas.distlima@example.com]
+                          copias: [admin.andina@example.com]
+                          responderA: admin.andina@example.com
+                        creadoPor: { id: 15, correo: luis.ramos@example.com }
+                        creadoEn: "2026-11-07T09:10:00-05:00"
+                        resueltoEn: "2026-11-07T09:10:02-05:00"
+                        verificableHasta: "2026-11-08T09:10:00-05:00"
+                    cuotasExcluidas:
+                      - { cuotaId: 9002, motivo: CUOTA_CANCELADA }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: Destinatarios cambiaron, reenvío sin confirmar, advertencia no aceptada o intento sin confirmar existente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorAviso' }
+              examples:
+                destinatariosCambiaron:
+                  value:
+                    codigo: DESTINATARIOS_CAMBIARON
+                    mensaje: Los destinatarios cambiaron. Revisa y confirma otra vez.
+                    idSolicitud: 0f4a5b6c-7d8e-4f9a-1b0c-2d3e4f5a6b70
+                    vistaPreviaVigente:
+                      correos:
+                        - contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
+                          tipoAviso: COBRAR_VENCIDA
+                          cuotaIds: [9001, 9002]
+                          destinatarios:
+                            para: [ventas.distlima@example.com]
+                            copias: [cobranzas.andina@example.com, jefe.cobranzas@example.com]
+                            responderA: cobranzas.andina@example.com
+                      cuotasExcluidas: []
+                      cuotasConAvisoPrevio: []
+                      advertenciaNoVerificable: false
+                      firmaDestinatarios: "fd_7c3a9e1b5d2f"
+                reenvioSinConfirmar:
+                  value:
+                    codigo: REENVIO_REQUIERE_CONFIRMACION
+                    mensaje: Algunas cuotas ya tienen un aviso enviado. Confirma «Reenviar aviso».
+                    idSolicitud: 0f4a5b6c-7d8e-4f9a-1b0c-2d3e4f5a6b71
+                sinConfirmar:
+                  $ref: '#/components/examples/ErrorIntentoSinConfirmar'
+        '422':
+          description: Comentario inválido o ninguna cuota apta (no se registra intento ni se envía correo).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                sinCuotasAptas:
+                  $ref: '#/components/examples/ErrorSinCuotasAptas'
+                comentarioLargo:
+                  value:
+                    codigo: VALIDACION_FALLIDA
+                    mensaje: La solicitud tiene datos que no cumplen las reglas.
+                    detalles:
+                      - { campo: comentario, codigo: LONGITUD_MAXIMA, mensaje: El comentario admite hasta 500 caracteres. }
+                    idSolicitud: 0f4a5b6c-7d8e-4f9a-1b0c-2d3e4f5a6b72
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+  /avisos/intentos:
+    get:
+      operationId: listarIntentosAviso
+      tags: [Avisos]
+      summary: Consultar la bandeja interna de avisos
+      description: |
+        **HU-010.** Lista paginada de intentos de aviso de la empresa, del más reciente al más antiguo, con su
+        resultado. Filtros por estado, cuota y contacto.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - name: estado
+          in: query
+          schema: { $ref: '#/components/schemas/EstadoIntento' }
+        - name: cuotaId
+          in: query
+          schema: { type: integer, format: int64, minimum: 1 }
+        - name: contactoId
+          in: query
+          schema: { type: integer, format: int64, minimum: 1 }
+        - $ref: '#/components/parameters/Pagina'
+        - $ref: '#/components/parameters/TamanoPagina'
+      responses:
+        '200':
+          description: Página de intentos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginaIntentosAviso' }
+              examples:
+                pagina:
+                  value:
+                    elementos:
+                      - id: 3001
+                        estado: ACEPTADO
+                        tipoAviso: COBRAR_VENCIDA
+                        contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
+                        cuotas:
+                          - { cuotaId: 9001, numeroDocumento: F001-00045, numeroCuota: 1, fechaEfectivaVencimiento: "2026-11-03", moneda: PEN, saldoAlEnvio: "600.00" }
+                        comentario: FAVOR CONFIRMAR FECHA DE PAGO
+                        destinatarios:
+                          para: [ventas.distlima@example.com]
+                          copias: [admin.andina@example.com, jefe.cobranzas@example.com]
+                          responderA: admin.andina@example.com
+                        creadoPor: { id: 15, correo: luis.ramos@example.com }
+                        creadoEn: "2026-11-07T09:05:00-05:00"
+                        resueltoEn: "2026-11-07T09:05:01-05:00"
+                        verificableHasta: "2026-11-08T09:05:00-05:00"
+                    paginacion: { pagina: 1, tamanoPagina: 20, totalElementos: 1, totalPaginas: 1 }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /avisos/intentos/{intentoId}:
+    get:
+      operationId: obtenerIntentoAviso
+      tags: [Avisos]
+      summary: Obtener un intento de aviso
+      description: |
+        **HU-010.** Detalle de un intento de la bandeja interna. La SPA puede consultarlo con
+        `X-Peticion-Automatica: true` mientras está SIN_CONFIRMAR.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/IntentoId'
+        - $ref: '#/components/parameters/PeticionAutomatica'
+      responses:
+        '200':
+          description: Intento.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntentoAviso' }
+              examples:
+                aceptado:
+                  $ref: '#/components/examples/IntentoAceptado'
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /avisos/intentos/{intentoId}/verificacion:
+    post:
+      operationId: verificarEnvioAviso
+      tags: [Avisos]
+      summary: Verificar un envío sin confirmar
+      description: |
+        **HU-010.** Acción del usuario (nunca automática) sobre un intento SIN_CONFIRMAR: repite la solicitud a
+        Resend con la misma clave de idempotencia, el mismo contenido y los mismos destinatarios guardados, sin
+        recalcular (RN-159). La interfaz advierte antes que, si Resend no recibió la original, el correo sale en ese
+        momento. Resultado en el mismo intento: ACEPTADO (marca «Enviado»), RECHAZADO, SIN_CONFIRMAR (nuevo tiempo de
+        espera) o NO_VERIFICABLE (vencida la ventana de 24 horas de la clave); en ese último caso el usuario puede
+        enviar un aviso nuevo con advertencia.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/IntentoId'
+        - $ref: '#/components/parameters/TokenCsrf'
+      responses:
+        '200':
+          description: Intento verificado con su nuevo estado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntentoAviso' }
+              examples:
+                aceptado:
+                  $ref: '#/components/examples/IntentoAceptado'
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: El intento no está SIN_CONFIRMAR.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                yaResuelto:
+                  value:
+                    codigo: ESTADO_NO_PERMITE_OPERACION
+                    mensaje: El intento ya tiene un resultado y no requiere verificación.
+                    idSolicitud: 1a5b6c7d-8e9f-4a0b-2c1d-3e4f5a6b7c80
+        '500': { $ref: '#/components/responses/ErrorInterno' }
+
+components:
+  securitySchemes:
+    sesionCookie:
+      type: apiKey
+      in: cookie
+      name: venceya_sesion
+      description: |
+        Sesión opaca en servidor (RN-149). Las operaciones distintas de GET exigen además la cabecera `X-Token-CSRF`.
+    tokenOperaciones:
+      type: http
+      scheme: bearer
+      description: |
+        Token personal del equipo de VenceYa para procedimientos internos. Solo se acepta en la API interna,
+        publicada en la red privada. Nunca lo emite ni lo acepta la API pública.
+
+  parameters:
+    TokenCsrf:
+      name: X-Token-CSRF
+      in: header
+      required: true
+      description: Token CSRF entregado al iniciar sesión (`SesionActual.tokenCsrf`).
+      schema: { type: string, minLength: 32, maxLength: 128 }
+      example: csrf_4fK9pL2qW8zX5mN7vB1cR3tY6uI0oP2a
+    PeticionAutomatica:
+      name: X-Peticion-Automatica
+      in: header
+      required: false
+      description: '`true` en sondeos o refrescos automáticos; no renueva la inactividad de la sesión (RN-149).'
+      schema: { type: boolean, default: false }
+    ClaveIdempotencia:
+      name: Clave-Idempotencia
+      in: header
+      required: true
+      description: |
+        Clave estable de la operación (UUID v4 generado por la SPA al abrir el formulario y conservado en los
+        reintentos). Única por empresa; vinculada a cuota, fecha e importe (RN-156).
+      schema: { type: string, format: uuid }
+      example: 6f1c2a9e-3b7d-4e5f-8a0b-1c2d3e4f5a6b
+    Pagina:
+      name: pagina
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    TamanoPagina:
+      name: tamanoPagina
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    EmpresaId:
+      name: empresaId
+      in: path
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+      example: 7
+    UsuarioId:
+      name: usuarioId
+      in: path
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+      example: 15
+    ContactoId:
+      name: contactoId
+      in: path
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+      example: 42
+    ComprobanteId:
+      name: comprobanteId
+      in: path
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+      example: 501
+    CuotaId:
+      name: cuotaId
+      in: path
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+      example: 9001
+    PagoId:
+      name: pagoId
+      in: path
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+      example: 1001
+    IntentoId:
+      name: intentoId
+      in: path
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+      example: 3001
+    SentidoLista:
+      name: sentido
+      in: path
+      required: true
+      schema: { type: string, enum: [por-cobrar, por-pagar] }
+      example: por-cobrar
+
+  responses:
+    SolicitudInvalida:
+      description: Cuerpo JSON mal formado o parámetros de ruta o de consulta inválidos.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            jsonInvalido:
+              value:
+                codigo: SOLICITUD_INVALIDA
+                mensaje: La solicitud no tiene el formato esperado.
+                idSolicitud: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+    NoAutenticado:
+      description: Sin sesión vigente (inexistente, vencida por inactividad o por plazo absoluto, o cerrada).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            sesionVencida:
+              value:
+                codigo: SESION_NO_VIGENTE
+                mensaje: Tu sesión terminó. Inicia sesión nuevamente.
+                idSolicitud: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e
+    PermisoDenegado:
+      description: El rol del usuario no tiene permiso para la operación (RN-060). Sin efectos.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            sinPermiso:
+              value:
+                codigo: PERMISO_DENEGADO
+                mensaje: No tienes permiso para realizar esta operación.
+                idSolicitud: c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f
+    CsrfInvalido:
+      description: Falta la cabecera `X-Token-CSRF` o no coincide con la de la sesión.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            csrf:
+              value:
+                codigo: TOKEN_CSRF_INVALIDO
+                mensaje: La solicitud no pudo verificarse. Recarga la página.
+                idSolicitud: d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80
+    NoEncontrado:
+      description: El recurso no existe o pertenece a otra empresa; ambos casos responden igual (RN-008).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            noEncontrado:
+              value:
+                codigo: RECURSO_NO_ENCONTRADO
+                mensaje: El recurso solicitado no existe.
+                idSolicitud: e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8091
+    ValidacionFallida:
+      description: El cuerpo incumple reglas de contenido o de negocio. `detalles` indica cada campo sin repetir su valor.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            validacion:
+              value:
+                codigo: VALIDACION_FALLIDA
+                mensaje: La solicitud tiene datos que no cumplen las reglas.
+                detalles:
+                  - { campo: correo, codigo: FORMATO_CORREO, mensaje: El correo no tiene formato válido. }
+                idSolicitud: f6a7b8c9-d0e1-4f2a-3b4c-5d6e7f8091a2
+    ErrorInterno:
+      description: Falla técnica. La operación no dejó efectos (RN-160) y puede repetirse.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            interno:
+              value:
+                codigo: ERROR_INTERNO
+                mensaje: No se pudo completar la operación. No se guardó ningún cambio.
+                idSolicitud: 0a1b2c3d-4e5f-4061-8293-a4b5c6d7e8f9
+
+  examples:
+    SesionAdministradora:
+      value:
+        usuario:
+          id: 12
+          correo: ana.torres@example.com
+          rol: ADMINISTRADOR
+        empresa: { id: 7, razonSocial: COMERCIAL ANDINA S.A.C. }
+        tokenCsrf: csrf_4fK9pL2qW8zX5mN7vB1cR3tY6uI0oP2a
+        iniciadaEn: "2026-11-09T08:00:00-05:00"
+        venceAbsolutoEn: "2026-11-09T20:00:00-05:00"
+        minutosInactividad: 30
+    UsuarioAna:
+      value:
+        id: 12
+        correo: ana.torres@example.com
+        rol: ADMINISTRADOR
+        estado: ACTIVO
+        tieneContrasena: true
+        creadoEn: "2026-11-09T09:00:00-05:00"
+        actualizadoEn: "2026-11-09T09:40:00-05:00"
+        version: 2
+    ContactoDistribuidora:
+      value:
+        id: 42
+        nombre: DISTRIBUIDORA LIMA
+        correo: ventas.distlima@example.com
+        telefono: null
+        direccion: null
+        estado: ACTIVO
+        tieneComprobantes: false
+        creadoEn: "2026-11-09T09:30:00-05:00"
+        actualizadoEn: "2026-11-09T09:30:00-05:00"
+        version: 1
+    ComprobanteF00145:
+      value:
+        id: 501
+        contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
+        sentido: POR_COBRAR
+        numeroDocumento: F001-00045
+        moneda: USD
+        total: "3000.00"
+        saldo: "3000.00"
+        fechaEmision: "2026-11-04"
+        modalidad: CUOTAS
+        estado: VIGENTE
+        editable: true
+        anulable: true
+        anulacion: null
+        cuotas:
+          - { id: 9001, numero: 1, importe: "1000.00", saldo: "1000.00", vencimientoOriginal: "2026-12-04", fechaEfectivaVencimiento: "2026-12-04", estado: PENDIENTE, diasAtraso: 0, reprogramada: false, version: 1 }
+          - { id: 9002, numero: 2, importe: "1000.00", saldo: "1000.00", vencimientoOriginal: "2027-01-04", fechaEfectivaVencimiento: "2027-01-04", estado: PENDIENTE, diasAtraso: 0, reprogramada: false, version: 1 }
+          - { id: 9003, numero: 3, importe: "1000.00", saldo: "1000.00", vencimientoOriginal: "2027-02-04", fechaEfectivaVencimiento: "2027-02-04", estado: PENDIENTE, diasAtraso: 0, reprogramada: false, version: 1 }
+        fechaCalculo: "2026-11-09"
+        creadoPor: { id: 15, correo: luis.ramos@example.com }
+        creadoEn: "2026-11-09T10:30:00-05:00"
+        version: 1
+    RespuestaPago1001:
+      value:
+        pago:
+          id: 1001
+          cuotaId: 9001
+          importe: "400.00"
+          moneda: PEN
+          fechaPago: "2026-11-09"
+          estado: VIGENTE
+          registradoPor: { id: 15, correo: luis.ramos@example.com }
+          creadoEn: "2026-11-09T11:05:12-05:00"
+          anulacion: null
+        cuota: { id: 9001, saldo: "600.00", estado: PENDIENTE, version: 4 }
+    IntentoAceptado:
+      value:
+        id: 3001
+        estado: ACEPTADO
+        tipoAviso: COBRAR_VENCIDA
+        contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
+        cuotas:
+          - { cuotaId: 9001, numeroDocumento: F001-00045, numeroCuota: 1, fechaEfectivaVencimiento: "2026-11-03", moneda: PEN, saldoAlEnvio: "600.00" }
+          - { cuotaId: 9002, numeroDocumento: F001-00045, numeroCuota: 2, fechaEfectivaVencimiento: "2026-11-03", moneda: PEN, saldoAlEnvio: "1000.00" }
+        comentario: FAVOR CONFIRMAR FECHA DE PAGO
+        destinatarios:
+          para: [ventas.distlima@example.com]
+          copias: [admin.andina@example.com, jefe.cobranzas@example.com]
+          responderA: admin.andina@example.com
+        creadoPor: { id: 15, correo: luis.ramos@example.com }
+        creadoEn: "2026-11-07T09:05:00-05:00"
+        resueltoEn: "2026-11-07T09:05:01-05:00"
+        verificableHasta: "2026-11-08T09:05:00-05:00"
+    ErrorDatosDesactualizados:
+      value:
+        codigo: DATOS_DESACTUALIZADOS
+        mensaje: Los datos cambiaron desde que los consultaste. Revisa la información vigente e intenta otra vez.
+        idSolicitud: 11223344-5566-4778-8899-aabbccddeeff
+    ErrorCorreoContactoDuplicado:
+      value:
+        codigo: CORREO_CONTACTO_YA_REGISTRADO
+        mensaje: Ya existe un contacto con ese correo en tu empresa.
+        idSolicitud: 22334455-6677-4889-9aab-bccddeeff001
+    ErrorComprobanteDuplicado:
+      value:
+        codigo: COMPROBANTE_DUPLICADO
+        mensaje: Ya existe un comprobante vigente con ese número de documento.
+        idSolicitud: 33445566-7788-499a-aabb-ccddeeff0012
+    ErrorMotivoVacio:
+      value:
+        codigo: VALIDACION_FALLIDA
+        mensaje: La solicitud tiene datos que no cumplen las reglas.
+        detalles:
+          - { campo: motivo, codigo: CAMPO_OBLIGATORIO, mensaje: El motivo es obligatorio. }
+        idSolicitud: 44556677-8899-4aab-bbcc-ddeeff001123
+    ErrorIntentoSinConfirmar:
+      value:
+        codigo: INTENTO_SIN_CONFIRMAR
+        mensaje: Hay un envío sin confirmar para estas cuotas. Usa «Verificar envío».
+        detalles:
+          - { campo: cuotaIds, codigo: INTENTO_EXISTENTE, mensaje: "Intento 3003 sin confirmar." }
+        idSolicitud: 55667788-99aa-4bbc-ccdd-eeff00112234
+    ErrorSinCuotasAptas:
+      value:
+        codigo: SIN_CUOTAS_APTAS
+        mensaje: Ninguna de las cuotas seleccionadas es apta para aviso.
+        detalles:
+          - { campo: cuotaIds, codigo: CUOTA_CANCELADA, mensaje: "La cuota 9002 está cancelada." }
+        idSolicitud: 66778899-aabb-4ccd-ddee-ff0011223345
+
+  schemas:
+    # ── Comunes ──
+    Error:
+      type: object
+      description: Formato único de error. Nunca contiene datos personales ni valores ingresados (PRINCIPIO-005).
+      required: [codigo, mensaje, idSolicitud]
+      properties:
+        codigo:
+          type: string
+          description: Código estable en MAYÚSCULAS_CON_GUION_BAJO (catálogo en `07-architecture.md`).
+          examples: [VALIDACION_FALLIDA]
+        mensaje:
+          type: string
+          description: Mensaje en español para el usuario.
+        detalles:
+          type: array
+          items: { $ref: '#/components/schemas/DetalleError' }
+        idSolicitud:
+          type: string
+          format: uuid
+          description: Identificador de correlación también registrado en los logs.
+    DetalleError:
+      type: object
+      required: [campo, codigo, mensaje]
+      properties:
+        campo: { type: string, description: 'Ruta del campo (por ejemplo `cuotas[1].importe`).' }
+        codigo: { type: string }
+        mensaje: { type: string }
+    ErrorAviso:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            vistaPreviaVigente:
+              $ref: '#/components/schemas/VistaPreviaAviso'
+    Paginacion:
+      type: object
+      required: [pagina, tamanoPagina, totalElementos, totalPaginas]
+      properties:
+        pagina: { type: integer, minimum: 1 }
+        tamanoPagina: { type: integer, minimum: 1, maximum: 100 }
+        totalElementos: { type: integer, minimum: 0 }
+        totalPaginas: { type: integer, minimum: 0 }
+    Importe:
+      type: string
+      description: Importe canónico de entrada, mayor que 0, hasta 12 dígitos enteros y 2 decimales, sin separador de miles.
+      pattern: '^(0|[1-9][0-9]{0,11})(\.[0-9]{1,2})?$'
+      examples: ["1000.50"]
+    ImporteRespuesta:
+      type: string
+      description: Importe con exactamente 2 decimales.
+      pattern: '^(0|[1-9][0-9]{0,11})\.[0-9]{2}$'
+      examples: ["1000.50"]
+    Moneda:
+      type: string
+      enum: [PEN, USD]
+      description: '`PEN` = S/ (soles), `USD` = US$ (dólares).'
+    Rol:
+      type: string
+      enum: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+    EstadoUsuario:
+      type: string
+      enum: [INVITADO, ACTIVO, DESACTIVADO]
+    EstadoContacto:
+      type: string
+      enum: [ACTIVO, DESACTIVADO]
+    Sentido:
+      type: string
+      enum: [POR_COBRAR, POR_PAGAR]
+    Modalidad:
+      type: string
+      enum: [PAGO_UNICO, CUOTAS]
+    EstadoComprobante:
+      type: string
+      enum: [VIGENTE, ANULADO]
+    EstadoCuota:
+      type: string
+      enum: [PENDIENTE, VENCIDA, CANCELADA, ANULADA]
+    EstadoPago:
+      type: string
+      enum: [VIGENTE, ANULADO]
+    EstadoPromesa:
+      type: string
+      enum: [ACTIVA, REEMPLAZADA, CUMPLIDA, INCUMPLIDA]
+    TipoAviso:
+      type: string
+      enum: [COBRAR_POR_VENCER, COBRAR_VENCIDA, PAGAR_POR_VENCER, PAGAR_VENCIDA]
+      description: Maqueta fija según sentido y estado de la cuota (RN-114).
+    EstadoIntento:
+      type: string
+      enum: [SIN_CONFIRMAR, ACEPTADO, RECHAZADO, NO_VERIFICABLE]
+    ResultadoEnvioCorreo:
+      type: string
+      enum: [ENVIADO, RECHAZADO, SIN_CONFIRMAR]
+    Correo:
+      type: string
+      description: Se normaliza con TRIM y minúsculas; formato válido con dominio con punto; 1 a 250 caracteres.
+      maxLength: 320
+      examples: [ana.torres@example.com]
+    ReferenciaUsuario:
+      type: object
+      required: [id, correo]
+      properties:
+        id: { type: integer, format: int64 }
+        correo: { type: string }
+    ContactoResumen:
+      type: object
+      required: [id, nombre, estado]
+      properties:
+        id: { type: integer, format: int64 }
+        nombre: { type: string }
+        estado: { $ref: '#/components/schemas/EstadoContacto' }
+    SolicitudConVersion:
+      type: object
+      required: [version]
+      additionalProperties: false
+      properties:
+        version: { type: integer, minimum: 1, description: Versión vista por el usuario (concurrencia optimista). }
+    EnvioCorreo:
+      type: object
+      required: [resultado, enlaceVenceEn]
+      properties:
+        resultado: { $ref: '#/components/schemas/ResultadoEnvioCorreo' }
+        enlaceVenceEn: { type: string, format: date-time }
+
+    # ── Autenticación ──
+    SolicitudInicioSesion:
+      type: object
+      required: [correo, contrasena]
+      additionalProperties: false
+      properties:
+        correo: { $ref: '#/components/schemas/Correo' }
+        contrasena: { type: string, maxLength: 1024, description: Se envía tal cual; no se recorta. }
+    SesionActual:
+      type: object
+      required: [usuario, empresa, tokenCsrf, iniciadaEn, venceAbsolutoEn, minutosInactividad]
+      properties:
+        usuario:
+          type: object
+          required: [id, correo, rol]
+          properties:
+            id: { type: integer, format: int64 }
+            correo: { type: string }
+            rol: { $ref: '#/components/schemas/Rol' }
+        empresa:
+          type: object
+          required: [id, razonSocial]
+          properties:
+            id: { type: integer, format: int64 }
+            razonSocial: { type: string }
+        tokenCsrf: { type: string }
+        iniciadaEn: { type: string, format: date-time }
+        venceAbsolutoEn: { type: string, format: date-time, description: Inicio + 12 horas; no se renueva. }
+        minutosInactividad: { type: integer, const: 30 }
+    SolicitudActivacion:
+      type: object
+      required: [token, contrasena]
+      additionalProperties: false
+      properties:
+        token: { type: string, minLength: 16, maxLength: 256 }
+        contrasena: { type: string, description: 8 a 128 caracteres; cualquier carácter; no vacía ni solo espacios; sin recorte. }
+    SolicitudRecuperacion:
+      type: object
+      required: [correo]
+      additionalProperties: false
+      properties:
+        correo: { $ref: '#/components/schemas/Correo' }
+    RespuestaRecuperacion:
+      type: object
+      required: [mensaje]
+      properties:
+        mensaje: { type: string }
+    SolicitudRestablecimiento:
+      type: object
+      required: [token, contrasenaNueva]
+      additionalProperties: false
+      properties:
+        token: { type: string, minLength: 16, maxLength: 256 }
+        contrasenaNueva: { type: string, description: Mismas reglas que en la activación. }
+
+    # ── Operaciones internas ──
+    SolicitudAltaEmpresa:
+      type: object
+      required: [razonSocial, ruc, correoAdministrativo, correoPrimerAdministrador]
+      additionalProperties: false
+      properties:
+        razonSocial: { type: string, description: 'RN-162: TRIM, un espacio interno, MAYÚSCULAS, 1 a 250, al menos una letra.' }
+        ruc: { type: string, description: Exactamente 11 dígitos tras TRIM; texto. }
+        correoAdministrativo: { $ref: '#/components/schemas/Correo' }
+        correoPrimerAdministrador: { $ref: '#/components/schemas/Correo' }
+    RespuestaAltaEmpresa:
+      type: object
+      required: [empresa, primerAdministrador, envioInvitacion]
+      properties:
+        empresa:
+          type: object
+          required: [id, razonSocial, ruc, correoAdministrativo, creadaEn]
+          properties:
+            id: { type: integer, format: int64 }
+            razonSocial: { type: string }
+            ruc: { type: string }
+            correoAdministrativo: { type: string }
+            creadaEn: { type: string, format: date-time }
+        primerAdministrador:
+          type: object
+          required: [id, correo, rol, estado]
+          properties:
+            id: { type: integer, format: int64 }
+            correo: { type: string }
+            rol: { $ref: '#/components/schemas/Rol' }
+            estado: { $ref: '#/components/schemas/EstadoUsuario' }
+        envioInvitacion: { $ref: '#/components/schemas/EnvioCorreo' }
+    RespuestaReenvioInvitacion:
+      type: object
+      required: [usuarioId, envioInvitacion]
+      properties:
+        usuarioId: { type: integer, format: int64 }
+        envioInvitacion: { $ref: '#/components/schemas/EnvioCorreo' }
+
+    # ── Usuarios ──
+    Usuario:
+      type: object
+      required: [id, correo, rol, estado, tieneContrasena, creadoEn, actualizadoEn, version]
+      properties:
+        id: { type: integer, format: int64 }
+        correo: { type: string }
+        rol: { $ref: '#/components/schemas/Rol' }
+        estado: { $ref: '#/components/schemas/EstadoUsuario' }
+        tieneContrasena: { type: boolean, description: Indica si alguna vez definió contraseña (determina la reactivación). }
+        creadoEn: { type: string, format: date-time }
+        actualizadoEn: { type: string, format: date-time }
+        version: { type: integer }
+    PaginaUsuarios:
+      type: object
+      required: [elementos, paginacion]
+      properties:
+        elementos: { type: array, items: { $ref: '#/components/schemas/Usuario' } }
+        paginacion: { $ref: '#/components/schemas/Paginacion' }
+    SolicitudInvitacion:
+      type: object
+      required: [correo, rol]
+      additionalProperties: false
+      properties:
+        correo: { $ref: '#/components/schemas/Correo' }
+        rol: { $ref: '#/components/schemas/Rol' }
+    RespuestaInvitacion:
+      type: object
+      required: [usuario, envioInvitacion]
+      properties:
+        usuario: { $ref: '#/components/schemas/Usuario' }
+        envioInvitacion: { $ref: '#/components/schemas/EnvioCorreo' }
+    SolicitudCambioRol:
+      type: object
+      required: [rol, version]
+      additionalProperties: false
+      properties:
+        rol: { $ref: '#/components/schemas/Rol' }
+        version: { type: integer, minimum: 1 }
+    RespuestaCambioRol:
+      type: object
+      required: [usuario, cambioEfectivo, sesionesCerradas]
+      properties:
+        usuario: { $ref: '#/components/schemas/Usuario' }
+        cambioEfectivo: { type: boolean }
+        sesionesCerradas: { type: integer, minimum: 0 }
+    RespuestaReactivacion:
+      type: object
+      required: [usuario, envioInvitacion]
+      properties:
+        usuario: { $ref: '#/components/schemas/Usuario' }
+        envioInvitacion:
+          oneOf:
+            - $ref: '#/components/schemas/EnvioCorreo'
+            - type: 'null'
+
+    # ── Mi cuenta y empresa ──
+    SolicitudPreferencias:
+      type: object
+      required: [monedaPreferida, ventanaProyeccionDias]
+      additionalProperties: false
+      properties:
+        monedaPreferida:
+          type: [string, 'null']
+          enum: [PEN, USD, null]
+        ventanaProyeccionDias:
+          type: [integer, 'null']
+          enum: [7, 10, 15, null]
+    Preferencias:
+      type: object
+      required: [monedaPreferida, ventanaProyeccionDias, monedaEfectiva, ventanaEfectivaDias]
+      properties:
+        monedaPreferida:
+          type: [string, 'null']
+          enum: [PEN, USD, null]
+        ventanaProyeccionDias:
+          type: [integer, 'null']
+          enum: [7, 10, 15, null]
+        monedaEfectiva: { $ref: '#/components/schemas/Moneda' }
+        ventanaEfectivaDias: { type: integer, enum: [7, 10, 15] }
+    ConfiguracionEmpresa:
+      type: object
+      required: [razonSocial, ruc, correoAdministrativo, monedaPorDefecto, version]
+      properties:
+        razonSocial: { type: string }
+        ruc: { type: string }
+        correoAdministrativo: { type: string }
+        monedaPorDefecto: { $ref: '#/components/schemas/Moneda' }
+        version: { type: integer }
+    SolicitudConfiguracionEmpresa:
+      type: object
+      required: [version]
+      additionalProperties: false
+      minProperties: 2
+      properties:
+        correoAdministrativo: { $ref: '#/components/schemas/Correo' }
+        monedaPorDefecto: { $ref: '#/components/schemas/Moneda' }
+        version: { type: integer, minimum: 1 }
+    MiembroListaCopias:
+      type: object
+      required: [usuarioId, correo, rol, estado, recibeCopias, agregadoEn]
+      properties:
+        usuarioId: { type: integer, format: int64 }
+        correo: { type: string }
+        rol: { $ref: '#/components/schemas/Rol' }
+        estado: { $ref: '#/components/schemas/EstadoUsuario' }
+        recibeCopias: { type: boolean, description: 'false si está DESACTIVADO o es OPERADOR (se muestra como inactivo).' }
+        agregadoEn: { type: string, format: date-time }
+    ListasCopias:
+      type: object
+      required: [porCobrar, porPagar]
+      properties:
+        porCobrar: { type: array, items: { $ref: '#/components/schemas/MiembroListaCopias' } }
+        porPagar: { type: array, items: { $ref: '#/components/schemas/MiembroListaCopias' } }
+    SolicitudAgregarCopia:
+      type: object
+      required: [usuarioId]
+      additionalProperties: false
+      properties:
+        usuarioId: { type: integer, format: int64, minimum: 1 }
+
+    # ── Contactos ──
+    Contacto:
+      type: object
+      required: [id, nombre, correo, telefono, direccion, estado, tieneComprobantes, creadoEn, actualizadoEn, version]
+      properties:
+        id: { type: integer, format: int64 }
+        nombre: { type: string }
+        correo: { type: string }
+        telefono: { type: [string, 'null'] }
+        direccion: { type: [string, 'null'] }
+        estado: { $ref: '#/components/schemas/EstadoContacto' }
+        tieneComprobantes: { type: boolean, description: Incluye anulados; si es true no puede eliminarse. }
+        creadoEn: { type: string, format: date-time }
+        actualizadoEn: { type: string, format: date-time }
+        version: { type: integer }
+    PaginaContactos:
+      type: object
+      required: [elementos, paginacion]
+      properties:
+        elementos: { type: array, items: { $ref: '#/components/schemas/Contacto' } }
+        paginacion: { $ref: '#/components/schemas/Paginacion' }
+    SolicitudContacto:
+      type: object
+      required: [nombre, correo]
+      additionalProperties: false
+      properties:
+        nombre: { type: string, description: 'RN-162: TRIM, un espacio interno, MAYÚSCULAS, 1 a 250, al menos una letra.' }
+        correo: { $ref: '#/components/schemas/Correo' }
+        telefono: { type: [string, 'null'], description: 'Opcional; TRIM; 1 a 30 caracteres: dígitos, espacios y + - ( ). Vacío equivale a null.' }
+        direccion: { type: [string, 'null'], description: 'Opcional; TRIM; 1 a 250 caracteres. Vacío equivale a null.' }
+    SolicitudEdicionContacto:
+      type: object
+      required: [version]
+      additionalProperties: false
+      minProperties: 2
+      properties:
+        nombre: { type: string }
+        correo: { $ref: '#/components/schemas/Correo' }
+        telefono: { type: [string, 'null'] }
+        direccion: { type: [string, 'null'] }
+        version: { type: integer, minimum: 1 }
+
+    # ── Comprobantes y cuotas ──
+    CuotaEntrada:
+      type: object
+      required: [numero, importe, fechaVencimiento]
+      additionalProperties: false
+      properties:
+        numero: { type: integer, minimum: 1, maximum: 120 }
+        importe: { $ref: '#/components/schemas/Importe' }
+        fechaVencimiento: { type: string, format: date }
+    SolicitudPropuestaCuotas:
+      type: object
+      required: [total, moneda, fechaEmision, modalidad]
+      additionalProperties: false
+      properties:
+        total: { $ref: '#/components/schemas/Importe' }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        fechaEmision: { type: string, format: date }
+        modalidad: { $ref: '#/components/schemas/Modalidad' }
+        cantidadCuotas: { type: integer, minimum: 2, maximum: 120, description: Obligatorio con CUOTAS. }
+        fechaVencimiento: { type: string, format: date, description: Obligatorio con PAGO_UNICO. }
+    PropuestaCuotas:
+      type: object
+      required: [cuotas]
+      properties:
+        cuotas:
+          type: array
+          items:
+            type: object
+            required: [numero, importe, fechaVencimiento]
+            properties:
+              numero: { type: integer }
+              importe: { $ref: '#/components/schemas/ImporteRespuesta' }
+              fechaVencimiento: { type: string, format: date }
+    SolicitudComprobante:
+      type: object
+      required: [contactoId, sentido, numeroDocumento, moneda, total, fechaEmision, modalidad, cuotas]
+      additionalProperties: false
+      properties:
+        contactoId: { type: integer, format: int64, minimum: 1 }
+        sentido: { $ref: '#/components/schemas/Sentido' }
+        numeroDocumento: { type: string, description: 'TRIM y MAYÚSCULAS; 1 a 30; letras, dígitos, - y _; sin espacios.' }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        total: { $ref: '#/components/schemas/Importe' }
+        fechaEmision: { type: string, format: date }
+        modalidad: { $ref: '#/components/schemas/Modalidad' }
+        cuotas:
+          type: array
+          minItems: 1
+          maxItems: 120
+          description: PAGO_UNICO exige 1 cuota; CUOTAS, de 2 a 120. Suma igual al total.
+          items: { $ref: '#/components/schemas/CuotaEntrada' }
+    SolicitudEdicionComprobante:
+      type: object
+      required: [version]
+      additionalProperties: false
+      minProperties: 2
+      properties:
+        contactoId: { type: integer, format: int64, minimum: 1 }
+        numeroDocumento: { type: string }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        total: { $ref: '#/components/schemas/Importe' }
+        fechaEmision: { type: string, format: date }
+        modalidad: { $ref: '#/components/schemas/Modalidad' }
+        cuotas:
+          type: array
+          minItems: 1
+          maxItems: 120
+          items: { $ref: '#/components/schemas/CuotaEntrada' }
+        version: { type: integer, minimum: 1 }
+    Cuota:
+      type: object
+      required: [id, numero, importe, saldo, vencimientoOriginal, fechaEfectivaVencimiento, estado, diasAtraso, reprogramada, version]
+      properties:
+        id: { type: integer, format: int64 }
+        numero: { type: integer }
+        importe: { $ref: '#/components/schemas/ImporteRespuesta' }
+        saldo:
+          description: null si la cuota está ANULADA (sin estado de pago vigente).
+          oneOf:
+            - $ref: '#/components/schemas/ImporteRespuesta'
+            - type: 'null'
+        vencimientoOriginal: { type: string, format: date }
+        fechaEfectivaVencimiento: { type: string, format: date, description: Fecha de la promesa ACTIVA o vencimiento original (RN-071). }
+        estado: { $ref: '#/components/schemas/EstadoCuota' }
+        diasAtraso: { type: integer, minimum: 0 }
+        reprogramada: { type: boolean }
+        version: { type: integer }
+    DetalleCuota:
+      allOf:
+        - $ref: '#/components/schemas/Cuota'
+        - type: object
+          required: [comprobanteId, numeroDocumento, sentido, contacto, moneda, fechaMinimaPago, fechaCalculo]
+          properties:
+            comprobanteId: { type: integer, format: int64 }
+            numeroDocumento: { type: string }
+            sentido: { $ref: '#/components/schemas/Sentido' }
+            contacto: { $ref: '#/components/schemas/ContactoResumen' }
+            moneda: { $ref: '#/components/schemas/Moneda' }
+            fechaMinimaPago: { type: string, format: date }
+            fechaCalculo: { type: string, format: date }
+    Anulacion:
+      type: object
+      required: [id, motivo, anuladoPor, anuladoEn]
+      properties:
+        id: { type: integer, format: int64 }
+        motivo: { type: string }
+        anuladoPor: { $ref: '#/components/schemas/ReferenciaUsuario' }
+        anuladoEn: { type: string, format: date-time }
+    ComprobanteResumen:
+      type: object
+      required: [id, contacto, sentido, numeroDocumento, moneda, total, saldo, fechaEmision, cantidadCuotas, estado]
+      properties:
+        id: { type: integer, format: int64 }
+        contacto: { $ref: '#/components/schemas/ContactoResumen' }
+        sentido: { $ref: '#/components/schemas/Sentido' }
+        numeroDocumento: { type: string }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        total: { $ref: '#/components/schemas/ImporteRespuesta' }
+        saldo:
+          oneOf:
+            - $ref: '#/components/schemas/ImporteRespuesta'
+            - type: 'null'
+        fechaEmision: { type: string, format: date }
+        cantidadCuotas: { type: integer }
+        estado: { $ref: '#/components/schemas/EstadoComprobante' }
+    PaginaComprobantes:
+      type: object
+      required: [elementos, paginacion]
+      properties:
+        elementos: { type: array, items: { $ref: '#/components/schemas/ComprobanteResumen' } }
+        paginacion: { $ref: '#/components/schemas/Paginacion' }
+    Comprobante:
+      type: object
+      required: [id, contacto, sentido, numeroDocumento, moneda, total, saldo, fechaEmision, modalidad, estado, editable, anulable, anulacion, cuotas, fechaCalculo, creadoPor, creadoEn, version]
+      properties:
+        id: { type: integer, format: int64 }
+        contacto: { $ref: '#/components/schemas/ContactoResumen' }
+        sentido: { $ref: '#/components/schemas/Sentido' }
+        numeroDocumento: { type: string }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        total: { $ref: '#/components/schemas/ImporteRespuesta' }
+        saldo:
+          oneOf:
+            - $ref: '#/components/schemas/ImporteRespuesta'
+            - type: 'null'
+        fechaEmision: { type: string, format: date }
+        modalidad: { $ref: '#/components/schemas/Modalidad' }
+        estado: { $ref: '#/components/schemas/EstadoComprobante' }
+        editable: { type: boolean }
+        anulable: { type: boolean }
+        anulacion:
+          oneOf:
+            - $ref: '#/components/schemas/Anulacion'
+            - type: 'null'
+        cuotas: { type: array, items: { $ref: '#/components/schemas/Cuota' } }
+        fechaCalculo: { type: string, format: date }
+        creadoPor: { $ref: '#/components/schemas/ReferenciaUsuario' }
+        creadoEn: { type: string, format: date-time }
+        version: { type: integer }
+    SolicitudAnulacion:
+      type: object
+      required: [motivo]
+      additionalProperties: false
+      properties:
+        motivo: { type: string, description: 'TRIM (incluye tabulaciones, saltos de línea y NBSP), MAYÚSCULAS, espacios internos conservados, 1 a 500.' }
+
+    # ── Pagos ──
+    SolicitudPago:
+      type: object
+      required: [importe, moneda, fechaPago, versionCuota]
+      additionalProperties: false
+      properties:
+        importe: { $ref: '#/components/schemas/Importe' }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        fechaPago: { type: string, format: date }
+        versionCuota: { type: integer, minimum: 1 }
+    Pago:
+      type: object
+      required: [id, cuotaId, importe, moneda, fechaPago, estado, registradoPor, creadoEn, anulacion]
+      properties:
+        id: { type: integer, format: int64 }
+        cuotaId: { type: integer, format: int64 }
+        importe: { $ref: '#/components/schemas/ImporteRespuesta' }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        fechaPago: { type: string, format: date }
+        estado: { $ref: '#/components/schemas/EstadoPago' }
+        registradoPor: { $ref: '#/components/schemas/ReferenciaUsuario' }
+        creadoEn: { type: string, format: date-time }
+        anulacion:
+          oneOf:
+            - $ref: '#/components/schemas/Anulacion'
+            - type: 'null'
+    EstadoCuotaResumen:
+      type: object
+      required: [id, saldo, estado, version]
+      properties:
+        id: { type: integer, format: int64 }
+        saldo: { $ref: '#/components/schemas/ImporteRespuesta' }
+        estado: { $ref: '#/components/schemas/EstadoCuota' }
+        version: { type: integer }
+    RespuestaPago:
+      type: object
+      required: [pago, cuota]
+      properties:
+        pago: { $ref: '#/components/schemas/Pago' }
+        cuota: { $ref: '#/components/schemas/EstadoCuotaResumen' }
+    RespuestaAnulacionPago:
+      type: object
+      required: [anulacion, pagoId, cuota]
+      properties:
+        anulacion: { $ref: '#/components/schemas/Anulacion' }
+        pagoId: { type: integer, format: int64 }
+        cuota: { $ref: '#/components/schemas/EstadoCuotaResumen' }
+
+    # ── Reprogramaciones ──
+    PromesaPago:
+      type: object
+      required: [id, fechaPrometida, estado, registradaPor, registradaEn]
+      properties:
+        id: { type: integer, format: int64 }
+        fechaPrometida: { type: string, format: date }
+        estado: { $ref: '#/components/schemas/EstadoPromesa' }
+        registradaPor: { $ref: '#/components/schemas/ReferenciaUsuario' }
+        registradaEn: { type: string, format: date-time }
+    SolicitudReprogramacion:
+      type: object
+      required: [fechaPrometida, versionCuota]
+      additionalProperties: false
+      properties:
+        fechaPrometida: { type: string, format: date, description: 'AAAA-MM-DD; una fecha inexistente (2026-02-30) se rechaza con 422.' }
+        versionCuota: { type: integer, minimum: 1 }
+    RespuestaReprogramacion:
+      type: object
+      required: [promesa, cuota]
+      properties:
+        promesa: { $ref: '#/components/schemas/PromesaPago' }
+        cuota:
+          type: object
+          required: [id, vencimientoOriginal, fechaEfectivaVencimiento, estado, reprogramada, version]
+          properties:
+            id: { type: integer, format: int64 }
+            vencimientoOriginal: { type: string, format: date }
+            fechaEfectivaVencimiento: { type: string, format: date }
+            estado: { $ref: '#/components/schemas/EstadoCuota' }
+            reprogramada: { type: boolean }
+            version: { type: integer }
+
+    # ── Panel ──
+    MovimientoCuota:
+      type: object
+      required: [cuotaId, comprobanteId, numeroDocumento, sentido, contacto, numeroCuota, totalCuotas, moneda, importe, saldo, vencimientoOriginal, fechaEfectivaVencimiento, estado, diasAtraso, reprogramada, comprobanteAnulado]
+      properties:
+        cuotaId: { type: integer, format: int64 }
+        comprobanteId: { type: integer, format: int64 }
+        numeroDocumento: { type: string }
+        sentido: { $ref: '#/components/schemas/Sentido' }
+        contacto: { $ref: '#/components/schemas/ContactoResumen' }
+        numeroCuota: { type: integer }
+        totalCuotas: { type: integer }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        importe: { $ref: '#/components/schemas/ImporteRespuesta' }
+        saldo:
+          oneOf:
+            - $ref: '#/components/schemas/ImporteRespuesta'
+            - type: 'null'
+        vencimientoOriginal: { type: string, format: date }
+        fechaEfectivaVencimiento: { type: string, format: date }
+        estado: { $ref: '#/components/schemas/EstadoCuota' }
+        diasAtraso: { type: integer, minimum: 0 }
+        reprogramada: { type: boolean }
+        comprobanteAnulado: { type: boolean }
+    PanelCartera:
+      type: object
+      required: [corte, fechaCalculo, moneda, origenMoneda, otraMoneda, indicadores, proyeccion, incluyeAnulados, movimientos]
+      properties:
+        corte: { type: string, format: date-time, description: 'Momento de corte; la interfaz muestra «Datos al DD/MM/AAAA, HH:mm».' }
+        fechaCalculo: { type: string, format: date }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        origenMoneda: { type: string, enum: [CONSULTA, PREFERENCIA_USUARIO, EMPRESA] }
+        otraMoneda:
+          type: object
+          required: [moneda, tieneCuotasVencidas]
+          properties:
+            moneda: { $ref: '#/components/schemas/Moneda' }
+            tieneCuotasVencidas: { type: boolean }
+        indicadores:
+          type: object
+          required: [vencidaPorCobrar, vencidaPorPagar, pendienteCobro, pendientePago]
+          properties:
+            vencidaPorCobrar: { $ref: '#/components/schemas/ImporteRespuesta' }
+            vencidaPorPagar: { $ref: '#/components/schemas/ImporteRespuesta' }
+            pendienteCobro: { $ref: '#/components/schemas/ImporteRespuesta' }
+            pendientePago: { $ref: '#/components/schemas/ImporteRespuesta' }
+        proyeccion:
+          type: object
+          required: [ventanaDias, dias]
+          properties:
+            ventanaDias: { type: integer, enum: [7, 10, 15] }
+            dias:
+              type: array
+              items:
+                type: object
+                required: [fecha, cobros, pagos]
+                properties:
+                  fecha: { type: string, format: date }
+                  cobros: { $ref: '#/components/schemas/ImporteRespuesta' }
+                  pagos: { $ref: '#/components/schemas/ImporteRespuesta' }
+        incluyeAnulados: { type: boolean }
+        movimientos: { type: array, items: { $ref: '#/components/schemas/MovimientoCuota' } }
+    TiempoPromedioCobro:
+      type: object
+      required: [mes, mesEnCurso, sinDatos, valorDias, cantidadComprobantes, corte, fechaCalculo]
+      properties:
+        mes: { type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$' }
+        mesEnCurso: { type: boolean, description: true → la interfaz muestra «Mes en curso — datos parciales». }
+        sinDatos: { type: boolean }
+        valorDias:
+          type: [string, 'null']
+          pattern: '^[0-9]+\.[0-9]{2}$'
+        cantidadComprobantes: { type: integer, minimum: 0 }
+        corte: { type: string, format: date-time }
+        fechaCalculo: { type: string, format: date }
+
+    # ── Avisos ──
+    CuotaPorAvisar:
+      type: object
+      required: [cuotaId, comprobanteId, numeroDocumento, numeroCuota, sentido, contacto, moneda, saldo, fechaEfectivaVencimiento, estado, diasAtraso, tipoAviso, ultimoAviso, intentoSinConfirmarId, promesaActiva]
+      properties:
+        cuotaId: { type: integer, format: int64 }
+        comprobanteId: { type: integer, format: int64 }
+        numeroDocumento: { type: string }
+        numeroCuota: { type: integer }
+        sentido: { $ref: '#/components/schemas/Sentido' }
+        contacto: { $ref: '#/components/schemas/ContactoResumen' }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        saldo: { $ref: '#/components/schemas/ImporteRespuesta' }
+        fechaEfectivaVencimiento: { type: string, format: date }
+        estado: { type: string, enum: [PENDIENTE, VENCIDA] }
+        diasAtraso: { type: integer, minimum: 0 }
+        tipoAviso: { $ref: '#/components/schemas/TipoAviso' }
+        ultimoAviso:
+          oneOf:
+            - type: object
+              required: [enviadoEn, enviadoPor, mismaFechaYTipo]
+              properties:
+                enviadoEn: { type: string, format: date-time }
+                enviadoPor: { $ref: '#/components/schemas/ReferenciaUsuario' }
+                mismaFechaYTipo: { type: boolean, description: true → exige confirmar «Reenviar aviso». }
+            - type: 'null'
+        intentoSinConfirmarId: { type: [integer, 'null'], format: int64 }
+        promesaActiva:
+          description: Solo con S1 entregada; null en el MVP.
+          oneOf:
+            - type: object
+              required: [fechaPrometida, registradaPor]
+              properties:
+                fechaPrometida: { type: string, format: date }
+                registradaPor: { $ref: '#/components/schemas/ReferenciaUsuario' }
+            - type: 'null'
+    ListaCuotasPorAvisar:
+      type: object
+      required: [corte, fechaCalculo, cuotas]
+      properties:
+        corte: { type: string, format: date-time }
+        fechaCalculo: { type: string, format: date }
+        cuotas: { type: array, items: { $ref: '#/components/schemas/CuotaPorAvisar' } }
+    Destinatarios:
+      type: object
+      required: [para, copias, responderA]
+      properties:
+        para: { type: array, items: { type: string } }
+        copias: { type: array, items: { type: string }, description: Sin duplicados. }
+        responderA: { type: string }
+    SolicitudVistaPreviaAviso:
+      type: object
+      required: [cuotaIds]
+      additionalProperties: false
+      properties:
+        cuotaIds:
+          type: array
+          minItems: 1
+          maxItems: 500
+          uniqueItems: true
+          items: { type: integer, format: int64, minimum: 1 }
+        comentario: { type: [string, 'null'], description: 'Opcional; TRIM y MAYÚSCULAS; máximo 500; solo espacios = sin comentario.' }
+    VistaPreviaAviso:
+      type: object
+      required: [correos, cuotasExcluidas, cuotasConAvisoPrevio, advertenciaNoVerificable, firmaDestinatarios]
+      properties:
+        correos:
+          type: array
+          items:
+            type: object
+            required: [contacto, tipoAviso, cuotaIds, destinatarios]
+            properties:
+              contacto: { $ref: '#/components/schemas/ContactoResumen' }
+              tipoAviso: { $ref: '#/components/schemas/TipoAviso' }
+              cuotaIds: { type: array, items: { type: integer, format: int64 } }
+              destinatarios: { $ref: '#/components/schemas/Destinatarios' }
+        cuotasExcluidas:
+          type: array
+          items: { $ref: '#/components/schemas/CuotaExcluida' }
+        cuotasConAvisoPrevio:
+          type: array
+          items:
+            type: object
+            required: [cuotaId, enviadoEn, enviadoPor]
+            properties:
+              cuotaId: { type: integer, format: int64 }
+              enviadoEn: { type: string, format: date-time }
+              enviadoPor: { $ref: '#/components/schemas/ReferenciaUsuario' }
+        advertenciaNoVerificable: { type: boolean, description: true si alguna cuota tiene un intento NO_VERIFICABLE (RN-159). }
+        firmaDestinatarios: { type: string, description: 'Firma opaca del servidor sobre cuotas, tipos y destinatarios vigentes.' }
+    CuotaExcluida:
+      type: object
+      required: [cuotaId, motivo]
+      properties:
+        cuotaId: { type: integer, format: int64 }
+        motivo: { type: string, enum: [CUOTA_CANCELADA, COMPROBANTE_ANULADO, SIN_SALDO] }
+    SolicitudEnvioAviso:
+      type: object
+      required: [cuotaIds, firmaDestinatarios]
+      additionalProperties: false
+      properties:
+        cuotaIds:
+          type: array
+          minItems: 1
+          maxItems: 500
+          uniqueItems: true
+          items: { type: integer, format: int64, minimum: 1 }
+        comentario: { type: [string, 'null'] }
+        firmaDestinatarios: { type: string }
+        confirmarReenvio: { type: boolean, default: false }
+        aceptarAdvertenciaNoVerificable: { type: boolean, default: false }
+    CuotaAvisada:
+      type: object
+      required: [cuotaId, numeroDocumento, numeroCuota, fechaEfectivaVencimiento, moneda, saldoAlEnvio]
+      properties:
+        cuotaId: { type: integer, format: int64 }
+        numeroDocumento: { type: string }
+        numeroCuota: { type: integer }
+        fechaEfectivaVencimiento: { type: string, format: date }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        saldoAlEnvio: { $ref: '#/components/schemas/ImporteRespuesta' }
+    IntentoAviso:
+      type: object
+      required: [id, estado, tipoAviso, contacto, cuotas, comentario, destinatarios, creadoPor, creadoEn, resueltoEn, verificableHasta]
+      properties:
+        id: { type: integer, format: int64 }
+        estado: { $ref: '#/components/schemas/EstadoIntento' }
+        tipoAviso: { $ref: '#/components/schemas/TipoAviso' }
+        contacto: { $ref: '#/components/schemas/ContactoResumen' }
+        cuotas: { type: array, items: { $ref: '#/components/schemas/CuotaAvisada' } }
+        comentario: { type: [string, 'null'] }
+        destinatarios: { $ref: '#/components/schemas/Destinatarios' }
+        creadoPor: { $ref: '#/components/schemas/ReferenciaUsuario' }
+        creadoEn: { type: string, format: date-time }
+        resueltoEn: { type: [string, 'null'], format: date-time }
+        verificableHasta: { type: string, format: date-time, description: creadoEn + 24 horas (ventana de idempotencia de Resend). }
+    RespuestaEnvioAviso:
+      type: object
+      required: [intentos, cuotasExcluidas]
+      properties:
+        intentos: { type: array, items: { $ref: '#/components/schemas/IntentoAviso' } }
+        cuotasExcluidas: { type: array, items: { $ref: '#/components/schemas/CuotaExcluida' } }
+    PaginaIntentosAviso:
+      type: object
+      required: [elementos, paginacion]
+      properties:
+        elementos: { type: array, items: { $ref: '#/components/schemas/IntentoAviso' } }
+        paginacion: { $ref: '#/components/schemas/Paginacion' }
