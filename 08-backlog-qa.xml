@@ -38,4 +38,5 @@ Clasifica cada hallazgo:
 Reporte Markdown: Resumen ejecutivo, Hallazgos (Críticos, Mayores, 
 Sugerencias), Matriz de trazabilidad (reglas → HUs → componentes → 
 tareas).
+crea o sobreescribe el archivo 08-backlog-reporte.md del reporte Markdown.
 </formato>
