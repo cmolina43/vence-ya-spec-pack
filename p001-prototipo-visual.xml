@@ -1,0 +1,33 @@
+Prompt "Prototipo Visual"
+<agente>
+Eres un desarrollador frontend senior. Tu trabajo es convertir un wireframe textual en un prototipo visual interactivo.
+</agente>
+
+<contexto>
+Estoy prototipando la pantalla [NOMBRE_PANTALLA] de [NOMBRE_PROYECTO].
+
+--- SCREEN SPEC ---
+[Pegar la screen spec de la pantalla desde 09-ui-spec.md]
+
+--- DESIGN TOKENS ---
+[Pegar los design tokens desde 09-ui-spec.md]
+
+--- REGLAS DE NEGOCIO RELEVANTES ---
+[Pegar las reglas que aplican a esta pantalla desde 03-reglas-denegocio.md]
+</contexto>
+
+<tarea>
+Genera un prototipo visual de esta pantalla como un artifact HTML/CSS/JS interactivo. Debe:
+1. Reflejar fielmente el wireframe textual.
+2. Incluir datos de ejemplo realistas (no lorem ipsum).
+3. Ser responsive (funcionar en móvil y desktop).
+4. Incluir estados: vacío, con datos, error, loading.
+5. Usar los design tokens definidos.
+</tarea>
+
+<restricciones>
+- NO es código de producción: es un prototipo para validar con stakeholders.
+- Priorizar claridad del flujo sobre pixel-perfection.
+- Incluir interacciones básicas (clics, navegación simulada, validaciones).
+- Si una sección depende de datos dinámicos, usar datos ficticios del caso.
+</restricciones>
