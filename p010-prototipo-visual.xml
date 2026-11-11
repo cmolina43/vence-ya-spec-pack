@@ -1,0 +1,211 @@
+Prompt "Prototipo Visual"
+<agente>
+Eres un desarrollador frontend senior. Tu trabajo es convertir un wireframe textual en un prototipo visual interactivo.
+</agente>
+
+<contexto>
+Estoy prototipando la pantalla "P-010 Configuración de la empresa" de VenceYa.
+
+--- SCREEN SPEC ---
+PANTALLA: P-010 Configuración de la empresa
+ACTOR: ADMINISTRADOR
+HUs: HU-009 (correo administrativo y listas de copias), HU-008 (moneda por defecto de la empresa).
+PROPOSITO: Definir el correo administrativo, la moneda por defecto de la empresa y las listas de usuarios en copia de los avisos por cobrar y por pagar.
+
+WIREFRAME TEXTUAL:
+```text
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│ <h1>Configuración de la empresa</h1>                                                 │
+│ ┌ Card «Datos de la empresa» ────────────────────────────────────────────────────────┐│
+│ │ Razón social: COMERCIAL ANDINA S.A.C.      RUC: 20123456789   (solo lectura)       ││
+│ │ Texto: «Para cambiar estos datos, contacta al equipo de VenceYa.»                  ││
+│ └────────────────────────────────────────────────────────────────────────────────────┘│
+│ ┌ Card «Correo administrativo» ──────────────────────────────────────────────────────┐│
+│ │ Recibe copia de todos los avisos y es la dirección de respuesta.                    ││
+│ │ Correo administrativo * [ admin@andina.example             ]  [Guardar]            ││
+│ │ Nota: «Los avisos ya enviados no cambian.»                                          ││
+│ └────────────────────────────────────────────────────────────────────────────────────┘│
+│ ┌ Card «Moneda por defecto del panel» ───────────────────────────────────────────────┐│
+│ │ ( ● S/ Soles )  ( ○ US$ Dólares )                              [Guardar]           ││
+│ │ «Se usa para los usuarios que no eligieron su propia moneda.»                       ││
+│ └────────────────────────────────────────────────────────────────────────────────────┘│
+│ ┌ Card «Copias de avisos por cobrar» ─────┐ ┌ Card «Copias de avisos por pagar» ─────┐│
+│ │ jefe.cobranzas@andina.example SUPERV.   │ │ (Lista vacía)                          ││
+│ │   [Quitar]                              │ │ «Solo se copiará al correo             ││
+│ │ marta@andina.example SUPERV.            │ │  administrativo.»                      ││
+│ │   ⚠ Inactivo: no recibe copias [Quitar] │ │                                        ││
+│ │ [+ Agregar usuario ▾] (combobox)        │ │ [+ Agregar usuario ▾]                  ││
+│ │ «Solo supervisores y administradores    │ │                                        ││
+│ │  activos de tu empresa.»                │ │                                        ││
+│ └─────────────────────────────────────────┘ └────────────────────────────────────────┘│
+└──────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+DATOS: Razón social y RUC (solo lectura); correo administrativo; moneda por defecto; dos listas de copias con correo, rol y elegibilidad («Inactivo: no recibe copias» si fue desactivado o pasó a OPERADOR).
+ACCIONES: Editar y guardar correo administrativo · Elegir y guardar moneda por defecto · Agregar usuario a una lista (combobox con solo SUPERVISOR/ADMINISTRADOR ACTIVOS no incluidos) · Quitar usuario de una lista. No se puede escribir un correo libre en las listas.
+
+--- DESIGN TOKENS ---
+PALETA DE COLORES:
+Base: shadcn/ui (Radix + Tailwind). Los tokens se declaran como variables CSS en `:root` y se mapean en `tailwind.config` (`colors.primary = 'var(--color-primario)'`, etc.). Todos los pares texto/fondo indicados fueron verificados con la fórmula de contraste WCAG 2.x.
+
+### Paleta de colores — tema claro (por defecto)
+
+| Token | Hex | Uso | Contraste verificado |
+|---|---|---|---|
+| `--color-primario` | `#0B5FA5` | Botón primario, enlaces, ítem activo, foco, serie «Cobros» | 6.57:1 sobre `#FFFFFF`; 6.28:1 sobre fondo |
+| `--color-primario-texto` | `#FFFFFF` | Texto sobre primario | 6.57:1 |
+| `--color-primario-hover` | `#094C84` | Hover/activo del primario | > 6.57:1 |
+| `--color-primario-suave` | `#E0EEFA` | Fondo de ítem activo, filas seleccionadas | primario sobre él: 5.57:1 |
+| `--color-secundario` | `#0F766E` | Serie «Pagos» del gráfico, acciones secundarias destacadas | 5.47:1 sobre blanco |
+| `--color-acento` | `#B45309` | Advertencias, marca «Reprogramada», «Por vencer» destacado | 5.02:1 sobre blanco |
+| `--color-peligro` | `#B91C1C` | Errores, botones destructivos, importes vencidos | 6.47:1 sobre blanco |
+| `--color-exito` | `#15803D` | Confirmaciones, CANCELADA, Enviado | 5.02:1 sobre blanco |
+| `--color-fondo` | `#F8FAFC` | Fondo de la aplicación | — |
+| `--color-superficie` | `#FFFFFF` | Cards, diálogos, tablas | — |
+| `--color-texto` | `#0F172A` | Texto principal | 17.06:1 sobre fondo |
+| `--color-texto-secundario` | `#475569` | Ayudas, metadatos, leyenda de corte | 7.58:1 sobre blanco; 7.24:1 sobre fondo |
+| `--color-borde-control` | `#64748B` | Borde de inputs, selects, casillas (WCAG 1.4.11 ≥ 3:1) | 4.76:1 sobre blanco |
+| `--color-borde-sutil` | `#E2E8F0` | Divisores decorativos, bordes de Card | (decorativo) |
+| `--color-foco` | `#0B5FA5` | Anillo de foco: 2 px sólido + 2 px de separación | 6.57:1 |
+
+**Badges de estado (texto oscuro sobre fondo tenue):**
+
+| Token | Texto | Fondo | Contraste |
+|---|---|---|---|
+| `estado-vencida` | `#991B1B` | `#FEE2E2` | 6.80:1 |
+| `estado-cancelada` / `aviso-enviado` | `#166534` | `#DCFCE7` | 6.49:1 |
+| `marca-reprogramada` / advertencia | `#92400E` | `#FEF3C7` | 6.37:1 |
+| `estado-pendiente` / `aviso-en-proceso` | `#1E40AF` | `#DBEAFE` | 7.15:1 |
+| `estado-anulado` / `aviso-no-enviado` | `#334155` | `#E2E8F0` | 8.40:1 |
+
+### Paleta — tema oscuro (opcional, respeta `prefers-color-scheme`)
+
+| Token | Hex | Contraste verificado |
+|---|---|---|
+| `--color-fondo` | `#0B1220` | — |
+| `--color-superficie` | `#111A2E` | — |
+| `--color-texto` | `#F8FAFC` | 17.89:1 sobre fondo |
+| `--color-texto-secundario` | `#94A3B8` | 7.30:1 sobre fondo |
+| `--color-primario` | `#60A5FA` (texto del botón: `#0B1220`) | 7.36:1 |
+| `--color-secundario` | `#2DD4BF` | 10.06:1 |
+| `--color-acento` | `#FBBF24` | 11.22:1 |
+| `--color-peligro` | `#F87171` | 6.77:1 |
+| `--color-exito` | `#4ADE80` | 10.74:1 |
+| `--color-borde-control` | `#7C8BA1` | 5.01:1 sobre superficie |
+
+TIPOGRAFIA:
+
+| Token | Valor |
+|---|---|
+| Familia | `"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` (Inter cubre á, é, í, ó, ú, ñ, ü) |
+| Números | `font-variant-numeric: tabular-nums` en importes, fechas y tablas |
+| Tamaño base | 16 px (1 rem); nunca menor que 14 px en texto de contenido |
+| Interlineado | 1.5 en texto; 1.25 en títulos |
+| Escala | `--texto-xs` 12 px (solo metadatos no esenciales) · `--texto-sm` 14 px (tablas, ayudas) · `--texto-base` 16 px · `--texto-lg` 18 px · `--texto-xl` 20 px (h3) · `--texto-2xl` 24 px (h2) · `--texto-3xl` 30 px (h1 y cifras de indicadores) |
+| Pesos | 400 normal · 500 etiquetas y encabezados de tabla · 600 títulos y botones · 700 cifras de indicadores |
+| Ajuste de texto | Soporta zoom al 200 % y `text-spacing` (WCAG 1.4.4 y 1.4.12) sin cortar contenido |
+
+COMPONENTES:
+
+| Componente | Especificación |
+|---|---|
+| Botón (`Button`) | Alto 40 px escritorio / 44 px móvil; padding horizontal 16 px; texto 14–16 px peso 600; variantes `primario`, `secundario` (borde `--color-borde-control`), `fantasma`, `destructivo`; estado «cargando» con spinner + texto. Botón solo icono: 40×40 px con `aria-label`. |
+| Input / Select / Combobox | Alto 40 px (44 px móvil); borde 1 px `--color-borde-control`; etiqueta visible encima (14 px, 500); ayuda debajo (14 px secundario); error debajo (14 px peligro, con icono y texto). |
+| Casilla / radio | Caja de 20 px con área clicable ≥ 24×24 px (etiqueta incluida en el área). |
+| Badge | Alto 24 px, padding 8 px, texto 12–14 px peso 500, radio 4 px, siempre con texto. |
+| Card de indicador | Padding 20 px; título 14 px; cifra 30 px peso 700; pie 14 px. Alto mínimo 120 px. |
+| Tabla | Fila 48 px (compacta 40 px); encabezado 14 px peso 500, fondo `--color-fondo`; importes alineados a la derecha. |
+| Diálogo | Ancho 480 px (confirmaciones), 560 px (formularios), 720 px (confirmar envío); pantalla completa en < 640 px; foco atrapado; `Esc` cierra salvo durante «Enviando…». |
+| Toast | Ancho 360 px, esquina inferior derecha (superior en móvil), 5 s; los errores **no** usan toast sino Alert persistente. |
+| Header / Sidebar | 64 px / 248 px en escritorio; 56 px de header en móvil. |
+| Anillo de foco | `outline: 2px solid var(--color-foco); outline-offset: 2px;` en todo elemento interactivo; nunca `outline: none` sin reemplazo. |
+
+--- REGLAS DE NEGOCIO RELEVANTES ---
+RN-060 / RN-167 / RN-174 / RN-175: Solo el ADMINISTRADOR configura la empresa
+CUANDO un usuario ADMINISTRADOR abre la pantalla de configuración,
+ENTONCES puede cambiar el correo administrativo, la moneda por defecto de la empresa y las listas de copias, solo de su propia empresa.
+CUANDO un OPERADOR o un SUPERVISOR intenta acceder o modificar estos datos,
+ENTONCES el sistema lo rechaza sin efectos (estado «sin permiso»), aunque la opción esté oculta en la interfaz.
+CUANDO un SUPERVISOR intenta agregarse a sí mismo a una lista de copias,
+ENTONCES el sistema no lo permite.
+
+RN-165: Correo administrativo obligatorio y válido
+CUANDO el ADMINISTRADOR guarda el correo administrativo,
+ENTONCES el sistema exige que no esté vacío y que tenga formato de correo válido.
+CUANDO el valor está vacío o es inválido (p. ej., «abc»),
+ENTONCES no se guarda y se muestra el error bajo el campo.
+
+RN-166: Correo administrativo propio de la empresa
+CUANDO se desactiva, cambia o se agrega un administrador de la empresa,
+ENTONCES el correo administrativo se conserva, porque es un dato de la empresa independiente de los correos de acceso de los usuarios.
+
+RN-104 / RN-164: Uso del correo administrativo vigente
+CUANDO el sistema genera un nuevo aviso,
+ENTONCES usa el correo administrativo vigente como copia y como dirección de respuesta (Reply-To).
+CUANDO el ADMINISTRADOR cambia admin@andina.example por cobranzas@andina.example,
+ENTONCES los avisos siguientes usan la nueva dirección y los avisos ya enviados no cambian.
+
+RN-168: Auditoría del cambio de correo administrativo
+CUANDO cambia el correo administrativo,
+ENTONCES el sistema audita el valor anterior, el nuevo, el usuario que lo cambió y la fecha y hora ISO 8601.
+CUANDO ocurre un error,
+ENTONCES esos valores no se escriben en logs ni en mensajes de error.
+
+RN-106 / RN-105: Moneda por defecto de la empresa
+CUANDO el ADMINISTRADOR cambia la moneda por defecto de la empresa (S/ o US$),
+ENTONCES se aplica en los siguientes ingresos al panel solo a los usuarios sin preferencia propia.
+CUANDO un usuario tiene su propia preferencia de moneda,
+ENTONCES el cambio de la empresa no la sustituye.
+CUANDO no existe ninguna configuración,
+ENTONCES el panel usa S/.
+
+RN-134: Dos listas de copias independientes
+CUANDO el ADMINISTRADOR gestiona las copias de avisos,
+ENTONCES existen dos listas separadas: «Copias de avisos por cobrar» y «Copias de avisos por pagar».
+CUANDO agrega un usuario a una lista,
+ENTONCES no se agrega automáticamente a la otra.
+
+RN-135: Elegibilidad de los usuarios en copia
+CUANDO el ADMINISTRADOR agrega un usuario a una lista,
+ENTONCES solo puede elegir usuarios ACTIVOS de su misma empresa con rol SUPERVISOR o ADMINISTRADOR; no se pueden escribir correos libres ni externos.
+CUANDO se intenta agregar a un OPERADOR, a un usuario inactivo o de otra empresa,
+ENTONCES el sistema lo rechaza con «Solo se pueden agregar supervisores o administradores activos.» (USUARIO_NO_ELEGIBLE_COPIAS).
+CUANDO un usuario de la lista es desactivado o pasa a rol OPERADOR,
+ENTONCES deja de recibir copias desde ese momento y la lista lo muestra como «⚠ Inactivo: no recibe copias» hasta que el ADMINISTRADOR lo quite o el usuario recupere un rol y estado válidos.
+
+RN-042: Sin duplicados en las listas y en los envíos
+CUANDO el ADMINISTRADOR intenta agregar un usuario que ya está en esa lista,
+ENTONCES el sistema lo rechaza (USUARIO_YA_EN_LISTA) y el combobox solo ofrece usuarios aún no incluidos.
+CUANDO una misma dirección figura varias veces entre los destinatarios de un aviso (p. ej., el correo administrativo y un usuario de la lista),
+ENTONCES se envía una sola vez.
+
+RN-177 / RN-178: Listas vacías permitidas
+CUANDO una o ambas listas de copias no tienen usuarios,
+ENTONCES el sistema lo acepta sin exigir agregar a nadie.
+CUANDO se genera un aviso cuya lista aplicable está vacía,
+ENTONCES se envía al contacto con copia únicamente al correo administrativo («Solo se copiará al correo administrativo.»).
+
+RN-176: Auditoría de cambios en las listas
+CUANDO el ADMINISTRADOR agrega o quita un usuario de una lista,
+ENTONCES el sistema registra el usuario agregado o quitado, la lista afectada, quién hizo el cambio y la fecha y hora ISO 8601.
+
+RN-179: Los avisos enviados no cambian
+CUANDO cambia una lista de copias o el correo administrativo,
+ENTONCES los avisos ya enviados conservan sus destinatarios históricos y la nueva configuración solo se aplica a los avisos nuevos.
+</contexto>
+
+<tarea>
+Genera un prototipo visual de esta pantalla como un artifact HTML/CSS/JS interactivo. Debe:
+1. Reflejar fielmente el wireframe textual.
+2. Incluir datos de ejemplo realistas (no lorem ipsum).
+3. Ser responsive (funcionar en móvil y desktop).
+4. Incluir estados: vacío, con datos, error, loading.
+5. Usar los design tokens definidos.
+</tarea>
+
+<restricciones>
+- NO es código de producción: es un prototipo para validar con stakeholders.
+- Priorizar claridad del flujo sobre pixel-perfection.
+- Incluir interacciones básicas (clics, navegación simulada, validaciones).
+- Si una sección depende de datos dinámicos, usar datos ficticios del caso.
+</restricciones>

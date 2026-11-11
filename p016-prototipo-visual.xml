@@ -1,0 +1,200 @@
+Prompt "Prototipo Visual"
+<agente>
+Eres un desarrollador frontend senior. Tu trabajo es convertir un wireframe textual en un prototipo visual interactivo.
+</agente>
+
+<contexto>
+Estoy prototipando la pantalla "P-016 Historial cronológico de la cuota" de VenceYa.
+
+--- SCREEN SPEC ---
+PANTALLA: P-016 Historial cronológico de la cuota
+ACTOR: Todos los roles.
+HUs: HU-017
+PROPOSITO: Definir el correo administrativo, la moneda por defecto de la empresa y las listas de usuarios en copia de los avisos por cobrar y por pagar.
+
+WIREFRAME TEXTUAL:
+```text
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│ <h1>Configuración de la empresa</h1>                                                 │
+│ ┌ Card «Datos de la empresa» ────────────────────────────────────────────────────────┐│
+│ │ Razón social: COMERCIAL ANDINA S.A.C.      RUC: 20123456789   (solo lectura)       ││
+│ │ Texto: «Para cambiar estos datos, contacta al equipo de VenceYa.»                  ││
+│ └────────────────────────────────────────────────────────────────────────────────────┘│
+│ ┌ Card «Correo administrativo» ──────────────────────────────────────────────────────┐│
+│ │ Recibe copia de todos los avisos y es la dirección de respuesta.                    ││
+│ │ Correo administrativo * [ admin@andina.example             ]  [Guardar]            ││
+│ │ Nota: «Los avisos ya enviados no cambian.»                                          ││
+│ └────────────────────────────────────────────────────────────────────────────────────┘│
+│ ┌ Card «Moneda por defecto del panel» ───────────────────────────────────────────────┐│
+│ │ ( ● S/ Soles )  ( ○ US$ Dólares )                              [Guardar]           ││
+│ │ «Se usa para los usuarios que no eligieron su propia moneda.»                       ││
+│ └────────────────────────────────────────────────────────────────────────────────────┘│
+│ ┌ Card «Copias de avisos por cobrar» ─────┐ ┌ Card «Copias de avisos por pagar» ─────┐│
+│ │ jefe.cobranzas@andina.example SUPERV.   │ │ (Lista vacía)                          ││
+│ │   [Quitar]                              │ │ «Solo se copiará al correo             ││
+│ │ marta@andina.example SUPERV.            │ │  administrativo.»                      ││
+│ │   ⚠ Inactivo: no recibe copias [Quitar] │ │                                        ││
+│ │ [+ Agregar usuario ▾] (combobox)        │ │ [+ Agregar usuario ▾]                  ││
+│ │ «Solo supervisores y administradores    │ │                                        ││
+│ │  activos de tu empresa.»                │ │                                        ││
+│ └─────────────────────────────────────────┘ └────────────────────────────────────────┘│
+└──────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+DATOS: Cabecera de la cuota (comprobante, contacto, n°, importe, saldo, estado). Línea de tiempo de eventos: emisión, ediciones, reprogramaciones (fecha anterior → nueva, solo con S1), pagos (importe), anulaciones de pago (importe, motivo), transiciones derivadas (VENCIDA, CANCELADA, reapertura). Cada evento registrado por un usuario muestra además «Registrado el AAAA-MM-DD HH:mm por USUARIO» como dato informativo.
+ACCIONES: Volver al comprobante.
+
+--- DESIGN TOKENS ---
+PALETA DE COLORES:
+Base: shadcn/ui (Radix + Tailwind). Los tokens se declaran como variables CSS en `:root` y se mapean en `tailwind.config` (`colors.primary = 'var(--color-primario)'`, etc.). Todos los pares texto/fondo indicados fueron verificados con la fórmula de contraste WCAG 2.x.
+
+### Paleta de colores — tema claro (por defecto)
+
+| Token | Hex | Uso | Contraste verificado |
+|---|---|---|---|
+| `--color-primario` | `#0B5FA5` | Botón primario, enlaces, ítem activo, foco, serie «Cobros» | 6.57:1 sobre `#FFFFFF`; 6.28:1 sobre fondo |
+| `--color-primario-texto` | `#FFFFFF` | Texto sobre primario | 6.57:1 |
+| `--color-primario-hover` | `#094C84` | Hover/activo del primario | > 6.57:1 |
+| `--color-primario-suave` | `#E0EEFA` | Fondo de ítem activo, filas seleccionadas | primario sobre él: 5.57:1 |
+| `--color-secundario` | `#0F766E` | Serie «Pagos» del gráfico, acciones secundarias destacadas | 5.47:1 sobre blanco |
+| `--color-acento` | `#B45309` | Advertencias, marca «Reprogramada», «Por vencer» destacado | 5.02:1 sobre blanco |
+| `--color-peligro` | `#B91C1C` | Errores, botones destructivos, importes vencidos | 6.47:1 sobre blanco |
+| `--color-exito` | `#15803D` | Confirmaciones, CANCELADA, Enviado | 5.02:1 sobre blanco |
+| `--color-fondo` | `#F8FAFC` | Fondo de la aplicación | — |
+| `--color-superficie` | `#FFFFFF` | Cards, diálogos, tablas | — |
+| `--color-texto` | `#0F172A` | Texto principal | 17.06:1 sobre fondo |
+| `--color-texto-secundario` | `#475569` | Ayudas, metadatos, leyenda de corte | 7.58:1 sobre blanco; 7.24:1 sobre fondo |
+| `--color-borde-control` | `#64748B` | Borde de inputs, selects, casillas (WCAG 1.4.11 ≥ 3:1) | 4.76:1 sobre blanco |
+| `--color-borde-sutil` | `#E2E8F0` | Divisores decorativos, bordes de Card | (decorativo) |
+| `--color-foco` | `#0B5FA5` | Anillo de foco: 2 px sólido + 2 px de separación | 6.57:1 |
+
+**Badges de estado (texto oscuro sobre fondo tenue):**
+
+| Token | Texto | Fondo | Contraste |
+|---|---|---|---|
+| `estado-vencida` | `#991B1B` | `#FEE2E2` | 6.80:1 |
+| `estado-cancelada` / `aviso-enviado` | `#166534` | `#DCFCE7` | 6.49:1 |
+| `marca-reprogramada` / advertencia | `#92400E` | `#FEF3C7` | 6.37:1 |
+| `estado-pendiente` / `aviso-en-proceso` | `#1E40AF` | `#DBEAFE` | 7.15:1 |
+| `estado-anulado` / `aviso-no-enviado` | `#334155` | `#E2E8F0` | 8.40:1 |
+
+### Paleta — tema oscuro (opcional, respeta `prefers-color-scheme`)
+
+| Token | Hex | Contraste verificado |
+|---|---|---|
+| `--color-fondo` | `#0B1220` | — |
+| `--color-superficie` | `#111A2E` | — |
+| `--color-texto` | `#F8FAFC` | 17.89:1 sobre fondo |
+| `--color-texto-secundario` | `#94A3B8` | 7.30:1 sobre fondo |
+| `--color-primario` | `#60A5FA` (texto del botón: `#0B1220`) | 7.36:1 |
+| `--color-secundario` | `#2DD4BF` | 10.06:1 |
+| `--color-acento` | `#FBBF24` | 11.22:1 |
+| `--color-peligro` | `#F87171` | 6.77:1 |
+| `--color-exito` | `#4ADE80` | 10.74:1 |
+| `--color-borde-control` | `#7C8BA1` | 5.01:1 sobre superficie |
+
+TIPOGRAFIA:
+
+| Token | Valor |
+|---|---|
+| Familia | `"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` (Inter cubre á, é, í, ó, ú, ñ, ü) |
+| Números | `font-variant-numeric: tabular-nums` en importes, fechas y tablas |
+| Tamaño base | 16 px (1 rem); nunca menor que 14 px en texto de contenido |
+| Interlineado | 1.5 en texto; 1.25 en títulos |
+| Escala | `--texto-xs` 12 px (solo metadatos no esenciales) · `--texto-sm` 14 px (tablas, ayudas) · `--texto-base` 16 px · `--texto-lg` 18 px · `--texto-xl` 20 px (h3) · `--texto-2xl` 24 px (h2) · `--texto-3xl` 30 px (h1 y cifras de indicadores) |
+| Pesos | 400 normal · 500 etiquetas y encabezados de tabla · 600 títulos y botones · 700 cifras de indicadores |
+| Ajuste de texto | Soporta zoom al 200 % y `text-spacing` (WCAG 1.4.4 y 1.4.12) sin cortar contenido |
+
+COMPONENTES:
+
+| Componente | Especificación |
+|---|---|
+| Botón (`Button`) | Alto 40 px escritorio / 44 px móvil; padding horizontal 16 px; texto 14–16 px peso 600; variantes `primario`, `secundario` (borde `--color-borde-control`), `fantasma`, `destructivo`; estado «cargando» con spinner + texto. Botón solo icono: 40×40 px con `aria-label`. |
+| Input / Select / Combobox | Alto 40 px (44 px móvil); borde 1 px `--color-borde-control`; etiqueta visible encima (14 px, 500); ayuda debajo (14 px secundario); error debajo (14 px peligro, con icono y texto). |
+| Casilla / radio | Caja de 20 px con área clicable ≥ 24×24 px (etiqueta incluida en el área). |
+| Badge | Alto 24 px, padding 8 px, texto 12–14 px peso 500, radio 4 px, siempre con texto. |
+| Card de indicador | Padding 20 px; título 14 px; cifra 30 px peso 700; pie 14 px. Alto mínimo 120 px. |
+| Tabla | Fila 48 px (compacta 40 px); encabezado 14 px peso 500, fondo `--color-fondo`; importes alineados a la derecha. |
+| Diálogo | Ancho 480 px (confirmaciones), 560 px (formularios), 720 px (confirmar envío); pantalla completa en < 640 px; foco atrapado; `Esc` cierra salvo durante «Enviando…». |
+| Toast | Ancho 360 px, esquina inferior derecha (superior en móvil), 5 s; los errores **no** usan toast sino Alert persistente. |
+| Header / Sidebar | 64 px / 248 px en escritorio; 56 px de header en móvil. |
+| Anillo de foco | `outline: 2px solid var(--color-foco); outline-offset: 2px;` en todo elemento interactivo; nunca `outline: none` sin reemplazo. |
+
+--- REGLAS DE NEGOCIO RELEVANTES ---
+RN-078: Historial cronológico de la cuota
+CUANDO cualquier usuario abra el historial de una cuota (vista disponible con S1 o S4, la que llegue primero),
+ENTONCES el sistema muestra la emisión del comprobante, cada edición, cada reprogramación (fecha anterior → nueva), cada pago con su importe, cada anulación de pago con su importe y motivo, el paso a VENCIDA, el paso a CANCELADA y la reapertura.
+CUANDO S1 no esté entregada,
+ENTONCES no se muestran eventos de reprogramación.
+CUANDO S1 y S4 no estén entregadas,
+ENTONCES la pantalla no está disponible (404).
+
+RN-078.1: Orden por fecha del hecho
+CUANDO el sistema ordene los eventos,
+ENTONCES usa la fecha del hecho (fecha de pago, vencimiento efectivo, fecha de la reprogramación o de la emisión), nunca la fecha de registro.
+CUANDO un evento haya sido registrado por un usuario (pago, anulación de pago, edición, reprogramación),
+ENTONCES muestra además «Registrado el AAAA-MM-DD HH:mm por USUARIO» solo como dato informativo.
+
+RN-078.2: Empates en la misma fecha
+CUANDO varios eventos tengan la misma fecha del hecho,
+ENTONCES el orden es: emisión, edición, reprogramación, pago (por fecha y hora de registro y luego por identificador), anulación de pago, VENCIDA, CANCELADA y reapertura.
+CUANDO un pago del día siguiente al vencimiento efectivo deje el saldo en cero,
+ENTONCES la cuota se muestra CANCELADA ese día sin mostrar VENCIDA.
+
+RN-078.3: Transiciones derivadas recalculadas
+CUANDO se consulte el historial,
+ENTONCES el paso a VENCIDA (día siguiente al vencimiento efectivo), a CANCELADA y la reapertura se calculan en ese momento con los pagos no anulados y las reprogramaciones vigentes; no son eventos guardados y se distinguen visualmente (icono distinto) de los eventos registrados.
+CUANDO exista un pago retroactivo o una anulación seguida de un reemplazo,
+ENTONCES las transiciones se recalculan y una transición mostrada antes puede desaparecer o cambiar de fecha.
+Ejemplo: cuota de S/ 1,000.00 que vence el 2026-10-15 con pago de S/ 400.00 del 2026-10-10; el 2026-10-25 se registra un pago de S/ 600.00 con fecha 2026-10-14 → el historial muestra pago 400 (10/10), pago 600 (14/10, registrado el 2026-10-25) y CANCELADA (14/10), sin VENCIDA.
+
+RN-078.4: Eventos conservados
+CUANDO un pago haya sido anulado,
+ENTONCES el pago original permanece en el historial marcado como [ANULADO], junto con su anulación y el pago de reemplazo, para que la corrección sea trazable.
+CUANDO se registren eventos nuevos,
+ENTONCES los eventos registrados nunca desaparecen ni se reordenan por la fecha de registro de otros.
+
+RN-083: Registro de ediciones del comprobante
+CUANDO un usuario edite un comprobante,
+ENTONCES el sistema guarda por cada campo cambiado el valor anterior, el valor nuevo, el usuario y la fecha y hora de la edición, y el historial muestra la edición (p. ej. «N° de documento: F001-00054 → F001-00045»).
+
+RN-084: Reapertura de la cuota
+CUANDO se anule un pago y la cuota vuelva a tener saldo mayor que cero,
+ENTONCES la cuota se reabre sin otra acción del usuario y pasa a PENDIENTE o VENCIDA según su fecha efectiva de vencimiento, aunque antes haya estado CANCELADA.
+CUANDO se anule el comprobante,
+ENTONCES sus cuotas quedan ANULADAS, sin estado de pago vigente.
+
+RN-088: Fecha de pago vs. fecha de registro
+CUANDO se registre un pago,
+ENTONCES se guarda la fecha de pago ingresada por el usuario y, aparte, la fecha y hora de creación del registro; el historial ubica el pago por su fecha de pago.
+CUANDO el saldo de la cuota llegue a cero,
+ENTONCES la fecha de CANCELADA es la mayor fecha de pago entre los pagos no anulados.
+CUANDO se registre o anule un pago,
+ENTONCES se recalculan saldo y cancelación; registrar o anular pagos nunca modifica el vencimiento acordado ni la fecha efectiva de vencimiento.
+
+RN-205: Momento de corte de la consulta
+CUANDO se genere la consulta del historial,
+ENTONCES el sistema fija un momento de corte con fecha, hora y zona horaria al inicio de la lectura y la pantalla lo muestra (p. ej. «Datos al 09/11/2026, 08:15»).
+
+RN-206: Lectura coherente
+CUANDO se muestre el historial,
+ENTONCES la cabecera (importe, saldo, estado) y todos los eventos usan la misma lectura del corte.
+CUANDO se registre un cambio durante la generación de la respuesta,
+ENTONCES ese cambio solo aparece en una nueva consulta.
+</contexto>
+
+<tarea>
+Genera un prototipo visual de esta pantalla como un artifact HTML/CSS/JS interactivo. Debe:
+1. Reflejar fielmente el wireframe textual.
+2. Incluir datos de ejemplo realistas (no lorem ipsum).
+3. Ser responsive (funcionar en móvil y desktop).
+4. Incluir estados: vacío, con datos, error, loading.
+5. Usar los design tokens definidos.
+</tarea>
+
+<restricciones>
+- NO es código de producción: es un prototipo para validar con stakeholders.
+- Priorizar claridad del flujo sobre pixel-perfection.
+- Incluir interacciones básicas (clics, navegación simulada, validaciones).
+- Si una sección depende de datos dinámicos, usar datos ficticios del caso.
+</restricciones>

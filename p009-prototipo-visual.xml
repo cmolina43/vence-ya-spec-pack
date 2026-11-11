@@ -1,0 +1,234 @@
+Prompt "Prototipo Visual"
+<agente>
+Eres un desarrollador frontend senior. Tu trabajo es convertir un wireframe textual en un prototipo visual interactivo.
+</agente>
+
+<contexto>
+Estoy prototipando la pantalla "P-009 Usuarios de la empresa" de VenceYa.
+
+--- SCREEN SPEC ---
+PANTALLA: P-009 Usuarios de la empresa
+ACTOR: ADMINISTRADOR (la ruta no existe en el menú de los demás roles; acceso directo → «Sin permiso»).
+HUs: HU-003
+PROPOSITO: Invitar usuarios, asignar y cambiar su rol, desactivarlos, reactivarlos y reenviar invitaciones.
+
+WIREFRAME TEXTUAL:
+```text
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│ <h1>Usuarios</h1>                                              [+ Invitar usuario]   │
+│ Estado [Todos ▾]   Rol [Todos ▾]                                                     │
+│ ┌──────────────────────────────┬────────────────┬──────────────┬────────────────────────────┬────────┐
+│ │ Correo                       │ Rol            │ Estado       │ Detalle                    │Acciones│
+│ │ ana@andina.example (tú)      │ ADMINISTRADOR  │ [ACTIVO]     │ —                          │ [⋯]    │
+│ │ luis@andina.example          │ OPERADOR       │ [INVITADO]   │ Invitación vence 2026-11-12│ [⋯]    │
+│ │                              │                │              │ 10:00 · ⚠ Correo no enviado│        │
+│ │ marta@andina.example         │ SUPERVISOR     │ [DESACTIVADO]│ —                          │ [⋯]    │
+│ └──────────────────────────────┴────────────────┴──────────────┴────────────────────────────┴────────┘
+│ Menú [⋯] según estado:                                                               │
+│   ACTIVO: Cambiar rol · Desactivar                                                   │
+│   INVITADO: Reenviar invitación · Cambiar rol · Desactivar                           │
+│   DESACTIVADO: Reactivar                                                             │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**P-009.D1 «Invitar usuario»:**
+
+```text
+┌ <h2>Invitar usuario</h2> ─────────────────────────── [✕] ┐
+│ Correo electrónico *  [                          ]        │
+│ <fieldset> Rol *                                          │
+│ ( ○ OPERADOR — registra contactos, comprobantes, pagos   │
+│     y avisos; no anula )                                  │
+│ ( ○ SUPERVISOR — además anula pagos y comprobantes )      │
+│ ( ○ ADMINISTRADOR — además administra usuarios y la       │
+│     configuración de la empresa )                         │
+│ Nota: «Recibirá un enlace válido por 72 horas para definir│
+│ su contraseña. Tú no conoces ni defines su contraseña.»   │
+│                         [Cancelar]  [Enviar invitación]   │
+└───────────────────────────────────────────────────────────┘
+```
+
+- Éxito con correo aceptado: toast «Invitación enviada».
+- Éxito con correo rechazado o sin confirmar: Alert persistente «Usuario creado, correo no enviado.» + botón «Reenviar invitación» (HU-003).
+- `CORREO_USUARIO_YA_REGISTRADO` → «Este correo ya está registrado en VenceYa.» (sin indicar la empresa).
+
+**P-009.D2 «Cambiar rol»:** radio de roles con el actual preseleccionado; advertencia «Al cambiar el rol se cerrarán todas las sesiones de luis@andina.example y deberá iniciar sesión de nuevo.»; si el usuario está en una lista de copias y pasa a OPERADOR: «Dejará de recibir copias de avisos.»; botón «Cambiar rol» deshabilitado si no cambia el valor. Error `ULTIMO_ADMINISTRADOR_ACTIVO` → «La empresa debe conservar al menos un administrador activo.» Si el administrador cambia su **propio** rol con éxito, la SPA cierra su sesión y navega a P-001.
+
+**P-009.D3 «Desactivar usuario»:** `AlertDialog` «¿Desactivar a luis@andina.example? Perderá el acceso y se cerrarán sus sesiones. Sus registros se conservan con su identidad.» Si está INVITADO: «Su enlace de invitación dejará de funcionar.»
+
+DATOS: Correo, rol, estado (INVITADO/ACTIVO/DESACTIVADO), vigencia del enlace de invitación (vigente/vencido), resultado del último envío de invitación («Correo no enviado»), indicación «(tú)» en la fila propia.
+ACCIONES: Invitar usuario (P-009.D1) · Cambiar rol (P-009.D2) · Desactivar (P-009.D3) · Reactivar · Reenviar invitación · Filtrar por estado y rol. **No existe** «Eliminar usuario».
+
+--- DESIGN TOKENS ---
+PALETA DE COLORES:
+Base: shadcn/ui (Radix + Tailwind). Los tokens se declaran como variables CSS en `:root` y se mapean en `tailwind.config` (`colors.primary = 'var(--color-primario)'`, etc.). Todos los pares texto/fondo indicados fueron verificados con la fórmula de contraste WCAG 2.x.
+
+### Paleta de colores — tema claro (por defecto)
+
+| Token | Hex | Uso | Contraste verificado |
+|---|---|---|---|
+| `--color-primario` | `#0B5FA5` | Botón primario, enlaces, ítem activo, foco, serie «Cobros» | 6.57:1 sobre `#FFFFFF`; 6.28:1 sobre fondo |
+| `--color-primario-texto` | `#FFFFFF` | Texto sobre primario | 6.57:1 |
+| `--color-primario-hover` | `#094C84` | Hover/activo del primario | > 6.57:1 |
+| `--color-primario-suave` | `#E0EEFA` | Fondo de ítem activo, filas seleccionadas | primario sobre él: 5.57:1 |
+| `--color-secundario` | `#0F766E` | Serie «Pagos» del gráfico, acciones secundarias destacadas | 5.47:1 sobre blanco |
+| `--color-acento` | `#B45309` | Advertencias, marca «Reprogramada», «Por vencer» destacado | 5.02:1 sobre blanco |
+| `--color-peligro` | `#B91C1C` | Errores, botones destructivos, importes vencidos | 6.47:1 sobre blanco |
+| `--color-exito` | `#15803D` | Confirmaciones, CANCELADA, Enviado | 5.02:1 sobre blanco |
+| `--color-fondo` | `#F8FAFC` | Fondo de la aplicación | — |
+| `--color-superficie` | `#FFFFFF` | Cards, diálogos, tablas | — |
+| `--color-texto` | `#0F172A` | Texto principal | 17.06:1 sobre fondo |
+| `--color-texto-secundario` | `#475569` | Ayudas, metadatos, leyenda de corte | 7.58:1 sobre blanco; 7.24:1 sobre fondo |
+| `--color-borde-control` | `#64748B` | Borde de inputs, selects, casillas (WCAG 1.4.11 ≥ 3:1) | 4.76:1 sobre blanco |
+| `--color-borde-sutil` | `#E2E8F0` | Divisores decorativos, bordes de Card | (decorativo) |
+| `--color-foco` | `#0B5FA5` | Anillo de foco: 2 px sólido + 2 px de separación | 6.57:1 |
+
+**Badges de estado (texto oscuro sobre fondo tenue):**
+
+| Token | Texto | Fondo | Contraste |
+|---|---|---|---|
+| `estado-vencida` | `#991B1B` | `#FEE2E2` | 6.80:1 |
+| `estado-cancelada` / `aviso-enviado` | `#166534` | `#DCFCE7` | 6.49:1 |
+| `marca-reprogramada` / advertencia | `#92400E` | `#FEF3C7` | 6.37:1 |
+| `estado-pendiente` / `aviso-en-proceso` | `#1E40AF` | `#DBEAFE` | 7.15:1 |
+| `estado-anulado` / `aviso-no-enviado` | `#334155` | `#E2E8F0` | 8.40:1 |
+
+### Paleta — tema oscuro (opcional, respeta `prefers-color-scheme`)
+
+| Token | Hex | Contraste verificado |
+|---|---|---|
+| `--color-fondo` | `#0B1220` | — |
+| `--color-superficie` | `#111A2E` | — |
+| `--color-texto` | `#F8FAFC` | 17.89:1 sobre fondo |
+| `--color-texto-secundario` | `#94A3B8` | 7.30:1 sobre fondo |
+| `--color-primario` | `#60A5FA` (texto del botón: `#0B1220`) | 7.36:1 |
+| `--color-secundario` | `#2DD4BF` | 10.06:1 |
+| `--color-acento` | `#FBBF24` | 11.22:1 |
+| `--color-peligro` | `#F87171` | 6.77:1 |
+| `--color-exito` | `#4ADE80` | 10.74:1 |
+| `--color-borde-control` | `#7C8BA1` | 5.01:1 sobre superficie |
+
+TIPOGRAFIA:
+
+| Token | Valor |
+|---|---|
+| Familia | `"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` (Inter cubre á, é, í, ó, ú, ñ, ü) |
+| Números | `font-variant-numeric: tabular-nums` en importes, fechas y tablas |
+| Tamaño base | 16 px (1 rem); nunca menor que 14 px en texto de contenido |
+| Interlineado | 1.5 en texto; 1.25 en títulos |
+| Escala | `--texto-xs` 12 px (solo metadatos no esenciales) · `--texto-sm` 14 px (tablas, ayudas) · `--texto-base` 16 px · `--texto-lg` 18 px · `--texto-xl` 20 px (h3) · `--texto-2xl` 24 px (h2) · `--texto-3xl` 30 px (h1 y cifras de indicadores) |
+| Pesos | 400 normal · 500 etiquetas y encabezados de tabla · 600 títulos y botones · 700 cifras de indicadores |
+| Ajuste de texto | Soporta zoom al 200 % y `text-spacing` (WCAG 1.4.4 y 1.4.12) sin cortar contenido |
+
+COMPONENTES:
+
+| Componente | Especificación |
+|---|---|
+| Botón (`Button`) | Alto 40 px escritorio / 44 px móvil; padding horizontal 16 px; texto 14–16 px peso 600; variantes `primario`, `secundario` (borde `--color-borde-control`), `fantasma`, `destructivo`; estado «cargando» con spinner + texto. Botón solo icono: 40×40 px con `aria-label`. |
+| Input / Select / Combobox | Alto 40 px (44 px móvil); borde 1 px `--color-borde-control`; etiqueta visible encima (14 px, 500); ayuda debajo (14 px secundario); error debajo (14 px peligro, con icono y texto). |
+| Casilla / radio | Caja de 20 px con área clicable ≥ 24×24 px (etiqueta incluida en el área). |
+| Badge | Alto 24 px, padding 8 px, texto 12–14 px peso 500, radio 4 px, siempre con texto. |
+| Card de indicador | Padding 20 px; título 14 px; cifra 30 px peso 700; pie 14 px. Alto mínimo 120 px. |
+| Tabla | Fila 48 px (compacta 40 px); encabezado 14 px peso 500, fondo `--color-fondo`; importes alineados a la derecha. |
+| Diálogo | Ancho 480 px (confirmaciones), 560 px (formularios), 720 px (confirmar envío); pantalla completa en < 640 px; foco atrapado; `Esc` cierra salvo durante «Enviando…». |
+| Toast | Ancho 360 px, esquina inferior derecha (superior en móvil), 5 s; los errores **no** usan toast sino Alert persistente. |
+| Header / Sidebar | 64 px / 248 px en escritorio; 56 px de header en móvil. |
+| Anillo de foco | `outline: 2px solid var(--color-foco); outline-offset: 2px;` en todo elemento interactivo; nunca `outline: none` sin reemplazo. |
+
+--- REGLAS DE NEGOCIO RELEVANTES ---
+RN-009: Usuarios solo dentro de la propia empresa
+CUANDO el administrador invita a un usuario,
+ENTONCES el sistema lo crea únicamente dentro de la empresa del administrador; nunca en otra empresa.
+
+RN-010: Un único rol por usuario
+CUANDO el administrador asigna o cambia el rol de un usuario,
+ENTONCES el selector ofrece exactamente ADMINISTRADOR, OPERADOR y SUPERVISOR, y el usuario queda con un solo rol.
+CUANDO se cambia el rol,
+ENTONCES el nuevo rol reemplaza al anterior (no se suman) y el cambio cierra sus sesiones según RN-161.
+
+RN-060: Matriz de permisos (administración de usuarios)
+CUANDO un usuario con rol OPERADOR o SUPERVISOR intenta invitar, reenviar invitaciones, desactivar, reactivar o cambiar roles de usuarios,
+ENTONCES el sistema lo rechaza; estas acciones son exclusivas del ADMINISTRADOR y solo dentro de su empresa.
+CUANDO un usuario sin rol ADMINISTRADOR accede directamente a /usuarios,
+ENTONCES ve «Sin permiso»; el servidor comprueba sesión, rol y empresa en cada operación (ocultar la opción no basta) y un rechazo no produce efectos.
+
+RN-070: Solo el ADMINISTRADOR crea usuarios
+CUANDO un usuario sin rol ADMINISTRADOR intenta crear otro usuario,
+ENTONCES el sistema no crea el usuario y devuelve un error de permiso.
+
+RN-097: Correo único global
+CUANDO el administrador invita a un correo que ya pertenece a otro usuario de cualquier empresa (incluidos INVITADOS y DESACTIVADOS),
+ENTONCES el sistema no crea el usuario y muestra «Este correo ya está registrado en VenceYa.», sin indicar a qué empresa pertenece.
+
+RN-098: Invitación con enlace de 72 horas
+CUANDO el administrador invita a un usuario,
+ENTONCES el usuario queda en estado INVITADO y recibe un correo con un enlace válido por 72 horas (de un solo uso) para definir su contraseña; el administrador nunca conoce ni define esa contraseña.
+CUANDO el usuario define su contraseña con el enlace vigente,
+ENTONCES pasa a estado ACTIVO.
+CUANDO el envío del correo de invitación falla o no se puede confirmar,
+ENTONCES el usuario igualmente queda creado como INVITADO, se muestra «Usuario creado, correo no enviado.» con la acción «Reenviar invitación», y el sistema no reintenta automáticamente.
+CUANDO el administrador reenvía la invitación a un usuario INVITADO (con enlace vigente o vencido),
+ENTONCES el sistema genera un enlace nuevo de 72 horas y revoca el anterior en la misma operación.
+CUANDO el usuario está ACTIVO o DESACTIVADO,
+ENTONCES la acción «Reenviar invitación» no está disponible.
+CUANDO se desactiva a un usuario INVITADO,
+ENTONCES su enlace de invitación deja de funcionar.
+
+RN-099: Desactivar y reactivar (nunca eliminar)
+CUANDO el administrador desactiva a un usuario,
+ENTONCES pasa a DESACTIVADO, se cierran sus sesiones abiertas y su historial (pagos, anulaciones, ediciones) se conserva con su identidad.
+CUANDO se busca eliminar un usuario,
+ENTONCES no existe esa acción: los usuarios se desactivan, no se eliminan.
+CUANDO el administrador reactiva a un usuario DESACTIVADO que ya había definido contraseña,
+ENTONCES vuelve a ACTIVO con su contraseña.
+CUANDO el administrador reactiva a un usuario que nunca definió contraseña,
+ENTONCES vuelve a INVITADO y recibe un enlace nuevo de 72 horas; nunca queda ACTIVO sin contraseña.
+
+RN-100: Protección del último administrador activo
+CUANDO la empresa tiene un solo ADMINISTRADOR activo y se intenta desactivarlo o cambiarle el rol (incluido a sí mismo),
+ENTONCES el sistema lo rechaza con «La empresa debe conservar al menos un administrador activo.»
+CUANDO existe otro ADMINISTRADOR activo,
+ENTONCES el administrador puede crear otros administradores, desactivarse o cambiarse de rol.
+CUANDO dos administradores intentan a la vez desactivarse o quitarse el rol mutuamente,
+ENTONCES se guarda solo la primera operación y la segunda se rechaza.
+
+RN-161: El cambio de rol cierra todas las sesiones
+CUANDO el administrador guarda un cambio efectivo de rol de un usuario (aumente o reduzca permisos),
+ENTONCES el sistema reemplaza el rol, cierra todas las sesiones del usuario en todos sus dispositivos y pestañas, y este debe volver a iniciar sesión.
+CUANDO se guarda el mismo rol que ya tenía,
+ENTONCES no es un cambio efectivo (el botón «Cambiar rol» permanece deshabilitado).
+CUANDO el administrador cambia su propio rol con éxito,
+ENTONCES su sesión se cierra y la aplicación navega a la pantalla de inicio de sesión (P-001).
+CUANDO se confirma el cambio de rol,
+ENTONCES queda auditado con quién lo hizo, el usuario afectado, rol anterior, rol nuevo y fecha y hora ISO 8601.
+
+RN-135: Efecto en las listas de copias de avisos
+CUANDO un usuario que está en una lista de copias de avisos pasa a DESACTIVADO o cambia a rol OPERADOR,
+ENTONCES deja de recibir copias de avisos desde ese momento (en P-009.D2 se advierte «Dejará de recibir copias de avisos.») y aparece como inactivo en la configuración de la empresa.
+
+RN-139: Correo normalizado
+CUANDO el administrador escribe el correo del usuario a invitar,
+ENTONCES el sistema quita los espacios exteriores y lo convierte a minúsculas antes de guardarlo y de comprobar duplicados (' Luis@Andina.example ' equivale a 'luis@andina.example').
+
+RN-160: Operaciones atómicas y estado vigente
+CUANDO el administrador invita, cambia el rol, desactiva, reactiva o reenvía una invitación,
+ENTONCES la operación guarda todos sus efectos (estado, sesiones, enlace, auditoría) o ninguno.
+CUANDO las condiciones cambiaron desde que se abrió la pantalla (p. ej., otro administrador ya modificó al usuario),
+ENTONCES se evalúan con el estado vigente al guardar; la operación incompatible se rechaza sin efectos parciales y se muestra el estado actual.
+</contexto>
+
+<tarea>
+Genera un prototipo visual de esta pantalla como un artifact HTML/CSS/JS interactivo. Debe:
+1. Reflejar fielmente el wireframe textual.
+2. Incluir datos de ejemplo realistas (no lorem ipsum).
+3. Ser responsive (funcionar en móvil y desktop).
+4. Incluir estados: vacío, con datos, error, loading.
+5. Usar los design tokens definidos.
+</tarea>
+
+<restricciones>
+- NO es código de producción: es un prototipo para validar con stakeholders.
+- Priorizar claridad del flujo sobre pixel-perfection.
+- Incluir interacciones básicas (clics, navegación simulada, validaciones).
+- Si una sección depende de datos dinámicos, usar datos ficticios del caso.
+</restricciones>

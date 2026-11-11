@@ -1,0 +1,182 @@
+Prompt "Prototipo Visual"
+<agente>
+Eres un desarrollador frontend senior. Tu trabajo es convertir un wireframe textual en un prototipo visual interactivo.
+</agente>
+
+<contexto>
+Estoy prototipando la pantalla "P-008 Bandeja interna de avisos" de VenceYa.
+
+--- SCREEN SPEC ---
+PANTALLA: P-008 Bandeja interna de avisos
+ACTOR: Usuario Todos los roles.
+HUs: HU-010
+PROPOSITO: Consultar el registro de cada intento de aviso (enviado o no) con su contenido, destinatarios y resultado.
+
+WIREFRAME TEXTUAL:
+```text
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│ <h1>Bandeja de avisos</h1>                                   [◂ Cuotas por avisar]   │
+│ Resultado [Todos ▾]  Contacto [buscar…]  Desde [AAAA-MM-DD] Hasta [AAAA-MM-DD]        │
+│ ┌──────────────────┬──────────┬───────────────────┬───────────────────────┬───────┬──────────────────┐
+│ │ Fecha y hora     │ Usuario  │ Contacto          │ Tipo                  │Cuotas │ Resultado        │
+│ │ 2026-11-09 08:20 │ LUIS PAZ │ DISTRIBUIDORA LIMA│ Por cobrar vencida    │ 2     │ [Enviado]        │
+│ │ 2026-11-09 08:20 │ LUIS PAZ │ DISTRIBUIDORA LIMA│ Por cobrar por vencer │ 1     │ [No Enviado]     │
+│ │                  │          │                   │                       │       │ Tiempo de espera │
+│ └──────────────────┴──────────┴───────────────────┴───────────────────────┴───────┴──────────────────┘
+│ « Anterior  1 2  Siguiente »                                                        │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+
+Detalle (/avisos/bandeja/:id) — Sheet lateral en escritorio, página en móvil:
+┌ <h2>Aviso del 2026-11-09 08:20</h2> ──────────────────────────── [✕] ┐
+│ Resultado: [Enviado]   Usuario: LUIS PAZ   Tipo: Por cobrar vencida   │
+│ Para: ventas@distlima.example                                          │
+│ Copia: admin@andina.example, jefe.cobranzas@andina.example             │
+│ Responder a: admin@andina.example                                      │
+│ Cuotas: F001-00045 cuota 1 · saldo al envío S/ 600.00 · vence 2026-10-28│
+│ Comentario: FAVOR CONFIRMAR FECHA DE PAGO                              │
+│ <details> Ver contenido del correo </details> (asunto + cuerpo, texto) │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+DATOS: Lista: fecha y hora, usuario, contacto, tipo de aviso, nº de cuotas, resultado (ENVIADO / NO_ENVIADO con motivo / EN_PROCESO). Detalle: además, destinatarios (Para, Copia, Responder a) tal como se guardaron, cuotas con saldo al envío, comentario, asunto y cuerpo del correo.
+ACCIONES: Filtrar por resultado, contacto y fechas · Abrir detalle · Ir a cuotas por avisar (para volver a intentar).
+
+--- DESIGN TOKENS ---
+PALETA DE COLORES:
+Base: shadcn/ui (Radix + Tailwind). Los tokens se declaran como variables CSS en `:root` y se mapean en `tailwind.config` (`colors.primary = 'var(--color-primario)'`, etc.). Todos los pares texto/fondo indicados fueron verificados con la fórmula de contraste WCAG 2.x.
+
+### Paleta de colores — tema claro (por defecto)
+
+| Token | Hex | Uso | Contraste verificado |
+|---|---|---|---|
+| `--color-primario` | `#0B5FA5` | Botón primario, enlaces, ítem activo, foco, serie «Cobros» | 6.57:1 sobre `#FFFFFF`; 6.28:1 sobre fondo |
+| `--color-primario-texto` | `#FFFFFF` | Texto sobre primario | 6.57:1 |
+| `--color-primario-hover` | `#094C84` | Hover/activo del primario | > 6.57:1 |
+| `--color-primario-suave` | `#E0EEFA` | Fondo de ítem activo, filas seleccionadas | primario sobre él: 5.57:1 |
+| `--color-secundario` | `#0F766E` | Serie «Pagos» del gráfico, acciones secundarias destacadas | 5.47:1 sobre blanco |
+| `--color-acento` | `#B45309` | Advertencias, marca «Reprogramada», «Por vencer» destacado | 5.02:1 sobre blanco |
+| `--color-peligro` | `#B91C1C` | Errores, botones destructivos, importes vencidos | 6.47:1 sobre blanco |
+| `--color-exito` | `#15803D` | Confirmaciones, CANCELADA, Enviado | 5.02:1 sobre blanco |
+| `--color-fondo` | `#F8FAFC` | Fondo de la aplicación | — |
+| `--color-superficie` | `#FFFFFF` | Cards, diálogos, tablas | — |
+| `--color-texto` | `#0F172A` | Texto principal | 17.06:1 sobre fondo |
+| `--color-texto-secundario` | `#475569` | Ayudas, metadatos, leyenda de corte | 7.58:1 sobre blanco; 7.24:1 sobre fondo |
+| `--color-borde-control` | `#64748B` | Borde de inputs, selects, casillas (WCAG 1.4.11 ≥ 3:1) | 4.76:1 sobre blanco |
+| `--color-borde-sutil` | `#E2E8F0` | Divisores decorativos, bordes de Card | (decorativo) |
+| `--color-foco` | `#0B5FA5` | Anillo de foco: 2 px sólido + 2 px de separación | 6.57:1 |
+
+**Badges de estado (texto oscuro sobre fondo tenue):**
+
+| Token | Texto | Fondo | Contraste |
+|---|---|---|---|
+| `estado-vencida` | `#991B1B` | `#FEE2E2` | 6.80:1 |
+| `estado-cancelada` / `aviso-enviado` | `#166534` | `#DCFCE7` | 6.49:1 |
+| `marca-reprogramada` / advertencia | `#92400E` | `#FEF3C7` | 6.37:1 |
+| `estado-pendiente` / `aviso-en-proceso` | `#1E40AF` | `#DBEAFE` | 7.15:1 |
+| `estado-anulado` / `aviso-no-enviado` | `#334155` | `#E2E8F0` | 8.40:1 |
+
+### Paleta — tema oscuro (opcional, respeta `prefers-color-scheme`)
+
+| Token | Hex | Contraste verificado |
+|---|---|---|
+| `--color-fondo` | `#0B1220` | — |
+| `--color-superficie` | `#111A2E` | — |
+| `--color-texto` | `#F8FAFC` | 17.89:1 sobre fondo |
+| `--color-texto-secundario` | `#94A3B8` | 7.30:1 sobre fondo |
+| `--color-primario` | `#60A5FA` (texto del botón: `#0B1220`) | 7.36:1 |
+| `--color-secundario` | `#2DD4BF` | 10.06:1 |
+| `--color-acento` | `#FBBF24` | 11.22:1 |
+| `--color-peligro` | `#F87171` | 6.77:1 |
+| `--color-exito` | `#4ADE80` | 10.74:1 |
+| `--color-borde-control` | `#7C8BA1` | 5.01:1 sobre superficie |
+
+TIPOGRAFIA:
+
+| Token | Valor |
+|---|---|
+| Familia | `"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` (Inter cubre á, é, í, ó, ú, ñ, ü) |
+| Números | `font-variant-numeric: tabular-nums` en importes, fechas y tablas |
+| Tamaño base | 16 px (1 rem); nunca menor que 14 px en texto de contenido |
+| Interlineado | 1.5 en texto; 1.25 en títulos |
+| Escala | `--texto-xs` 12 px (solo metadatos no esenciales) · `--texto-sm` 14 px (tablas, ayudas) · `--texto-base` 16 px · `--texto-lg` 18 px · `--texto-xl` 20 px (h3) · `--texto-2xl` 24 px (h2) · `--texto-3xl` 30 px (h1 y cifras de indicadores) |
+| Pesos | 400 normal · 500 etiquetas y encabezados de tabla · 600 títulos y botones · 700 cifras de indicadores |
+| Ajuste de texto | Soporta zoom al 200 % y `text-spacing` (WCAG 1.4.4 y 1.4.12) sin cortar contenido |
+
+COMPONENTES:
+
+| Componente | Especificación |
+|---|---|
+| Botón (`Button`) | Alto 40 px escritorio / 44 px móvil; padding horizontal 16 px; texto 14–16 px peso 600; variantes `primario`, `secundario` (borde `--color-borde-control`), `fantasma`, `destructivo`; estado «cargando» con spinner + texto. Botón solo icono: 40×40 px con `aria-label`. |
+| Input / Select / Combobox | Alto 40 px (44 px móvil); borde 1 px `--color-borde-control`; etiqueta visible encima (14 px, 500); ayuda debajo (14 px secundario); error debajo (14 px peligro, con icono y texto). |
+| Casilla / radio | Caja de 20 px con área clicable ≥ 24×24 px (etiqueta incluida en el área). |
+| Badge | Alto 24 px, padding 8 px, texto 12–14 px peso 500, radio 4 px, siempre con texto. |
+| Card de indicador | Padding 20 px; título 14 px; cifra 30 px peso 700; pie 14 px. Alto mínimo 120 px. |
+| Tabla | Fila 48 px (compacta 40 px); encabezado 14 px peso 500, fondo `--color-fondo`; importes alineados a la derecha. |
+| Diálogo | Ancho 480 px (confirmaciones), 560 px (formularios), 720 px (confirmar envío); pantalla completa en < 640 px; foco atrapado; `Esc` cierra salvo durante «Enviando…». |
+| Toast | Ancho 360 px, esquina inferior derecha (superior en móvil), 5 s; los errores **no** usan toast sino Alert persistente. |
+| Header / Sidebar | 64 px / 248 px en escritorio; 56 px de header en móvil. |
+| Anillo de foco | `outline: 2px solid var(--color-foco); outline-offset: 2px;` en todo elemento interactivo; nunca `outline: none` sin reemplazo. |
+
+--- REGLAS DE NEGOCIO RELEVANTES ---
+RN-043: Registro de cada intento en la bandeja interna
+CUANDO un usuario confirma el envío de un aviso de vencimiento,
+ENTONCES el sistema registra cada intento en la bandeja con fecha y hora (ISO 8601), usuario, contacto, cuotas incluidas, tipo de aviso, comentario si lo hay, destinatario principal, destinatarios en copia al momento del intento y resultado de la solicitud a Resend.
+CUANDO un usuario con cualquier rol abre la bandeja,
+ENTONCES puede ver todo este historial.
+CUANDO Resend rechaza el correo,
+ENTONCES la bandeja conserva el intento y nunca lo muestra como «Enviado».
+
+RN-066: Rechazo o error del proveedor
+CUANDO el proveedor rechaza la solicitud o se produce un error de comunicación,
+ENTONCES el intento se cierra como «No Enviado» y se conserva con el motivo del fallo (p. ej., RECHAZO_PROVEEDOR).
+CUANDO un reenvío falla para una cuota que ya tenía un envío exitoso,
+ENTONCES la bandeja conserva el intento nuevo como «No Enviado» sin borrar ni modificar el envío anterior exitoso.
+CUANDO el usuario quiere volver a intentar,
+ENTONCES lo hace manualmente desde Cuotas por avisar; no existen reintentos automáticos.
+CUANDO se muestra el motivo del fallo,
+ENTONCES el mensaje no incluye direcciones de correo ni importes.
+
+RN-067: Tiempo de espera agotado
+CUANDO el intento agota el tiempo de espera del servidor (10 segundos),
+ENTONCES se trata como «No Enviado» con motivo TIEMPO_ESPERA y se muestra «El aviso no se envió. Puedes volver a intentar».
+CUANDO un intento termina por tiempo de espera,
+ENTONCES no se exige verificación posterior, espera de 24 horas ni advertencia adicional para un nuevo intento manual, y no se crea ni se quita una marca «Enviado» anterior.
+
+RN-138: Cada intento se conserva; los históricos no cambian
+CUANDO el usuario reenvía un aviso «Enviado» o vuelve a intentar uno «No Enviado»,
+ENTONCES el sistema genera un aviso nuevo con los datos, el tipo y los destinatarios vigentes al confirmar, y lo registra en la bandeja junto a los anteriores.
+CUANDO se consulta el detalle de un intento anterior,
+ENTONCES se muestran el contenido y los destinatarios (Para, Copia, Responder a) tal como se guardaron en ese momento, aunque después hayan cambiado las listas de copias o los datos del contacto.
+CUANDO se reenvía un aviso ya enviado y Resend lo acepta,
+ENTONCES la bandeja muestra ambos intentos (el original y el reenvío).
+
+RN-158: Intento EN_PROCESO y su plazo
+CUANDO el usuario confirma un envío, reenvío o reintento,
+ENTONCES el intento se guarda en la bandeja como EN_PROCESO (con contenido, cuotas, destinatarios y plazo del servidor) antes de llamar a Resend.
+CUANDO llega la respuesta exitosa,
+ENTONCES el intento pasa a ENVIADO; CUANDO hay rechazo, error o vence el plazo, ENTONCES pasa a NO_ENVIADO.
+CUANDO el plazo de un intento EN_PROCESO vence sin éxito registrado,
+ENTONCES las lecturas de la bandeja lo muestran como «No Enviado», aunque aún no se haya cerrado físicamente.
+CUANDO llega una respuesta tardía de un intento ya cerrado,
+ENTONCES no reabre ni cambia ese intento.
+
+RN-215: Sin avisos automáticos
+CUANDO una cuota vence o está por vencer,
+ENTONCES el sistema no envía ningún aviso sin la confirmación de un usuario; por eso cada intento de la bandeja tiene siempre un usuario responsable.
+</contexto>
+
+<tarea>
+Genera un prototipo visual de esta pantalla como un artifact HTML/CSS/JS interactivo. Debe:
+1. Reflejar fielmente el wireframe textual.
+2. Incluir datos de ejemplo realistas (no lorem ipsum).
+3. Ser responsive (funcionar en móvil y desktop).
+4. Incluir estados: vacío, con datos, error, loading.
+5. Usar los design tokens definidos.
+</tarea>
+
+<restricciones>
+- NO es código de producción: es un prototipo para validar con stakeholders.
+- Priorizar claridad del flujo sobre pixel-perfection.
+- Incluir interacciones básicas (clics, navegación simulada, validaciones).
+- Si una sección depende de datos dinámicos, usar datos ficticios del caso.
+</restricciones>

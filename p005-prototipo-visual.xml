@@ -4,16 +4,264 @@ Eres un desarrollador frontend senior. Tu trabajo es convertir un wireframe text
 </agente>
 
 <contexto>
-Estoy prototipando la pantalla [NOMBRE_PANTALLA] de [NOMBRE_PROYECTO].
+Estoy prototipando la pantalla "P-005 Registrar / editar comprobante" de VenceYa.
 
 --- SCREEN SPEC ---
-[Pegar la screen spec de la pantalla desde 09-ui-spec.md]
+PANTALLA: P-005 Registrar / editar comprobante
+ACTOR: Todos los roles.
+HUs: HU-005 (y HU-004 por el alta rápida de contacto).
+PROPOSITO: Registrar un comprobante por cobrar o por pagar en su moneda original, en pago único o en cuotas, y editarlo mientras no tenga pagos ni reprogramaciones.
+
+WIREFRAME TEXTUAL:
+**Wireframe (escritorio, 2 columnas: formulario 2/3, resumen 1/3 fijo con `position: sticky`):**
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│ Migas: Comprobantes / Registrar                                                      │
+│ <h1>Registrar comprobante</h1>   (edición: «Editar F001-00045»)                      │
+│ [Resumen de errores — role=alert, enlaces a campos]                                  │
+├──────────────────────────────────────────────────────┬───────────────────────────────┤
+│ <fieldset> Tipo de comprobante *                      │ RESUMEN (Card sticky)         │
+│   ( ● Por cobrar — me deben )  ( ○ Por pagar — debo ) │ Total:          S/ 1,000.00   │
+│                                                       │ Suma de cuotas: S/ 1,000.00   │
+│ Contacto *                                            │ Diferencia:     S/ 0.00  ✓    │
+│ [ Buscar contacto activo…              ▾]             │ (rojo + texto «No cuadra» si  │
+│   Combobox (Command): resultados por nombre;          │  ≠ 0; aria-live=polite)       │
+│   último ítem fijo: «+ Crear contacto "texto"»        │                               │
+│                                                       │ Cuotas: 3                     │
+│ Número de documento *          Moneda *               │ Primera: 2026-12-04           │
+│ [ F001-00045        ]          ( ● S/ )( ○ US$ )      │ Última:  2027-02-04           │
+│ Ayuda: «Sin espacios. Ej.: F001-00045»                │                               │
+│                                                       │ [ Guardar comprobante ]       │
+│ Total *                        Fecha de emisión *     │ [ Cancelar ]                  │
+│ [S/ | 1,000.00        ]        [ 2026-11-04  📅]      │                               │
+│ Ayuda: «Usa coma para miles y punto para decimales:   │                               │
+│         1,000.50»                                     │                               │
+│                                                       │                               │
+│ <fieldset> Forma de pago *                            │                               │
+│   ( ○ Pago único )  ( ● En cuotas )                   │                               │
+│                                                       │                               │
+│ ── Si «Pago único» ──                                 │                               │
+│ Fecha de vencimiento * [ 2026-12-15 📅 ]              │                               │
+│                                                       │                               │
+│ ── Si «En cuotas» ──                                  │                               │
+│ Cantidad de cuotas * [  3 ]  (2 a 120)  [Proponer cuotas]                             │
+│ Ayuda dinámica: «Máximo posible para este total: 2» (si aplica)                       │
+│ ┌ Tabla editable «Cuotas» ───────────────────────────┐                               │
+│ │ N° │ Vencimiento *      │ Importe *               │                               │
+│ │ 1  │ [2026-12-04 📅]    │ [S/ | 333.33      ]     │                               │
+│ │ 2  │ [2027-01-04 📅]    │ [S/ | 333.33      ]     │                               │
+│ │ 3  │ [2027-02-04 📅]    │ [S/ | 333.34      ]     │                               │
+│ └────────────────────────────────────────────────────┘                               │
+│ Nota: «La propuesta es una ayuda: puedes cambiar fechas e importes antes de guardar.» │
+└──────────────────────────────────────────────────────┴───────────────────────────────┘
+ 
+```
+Wireframe móvil: una columna; el resumen pasa a una barra fija inferior con Diferencia + [Guardar].
+
+DATOS: Formulario; propuesta de cuotas editable; resumen «Suma de cuotas / Total / Diferencia». En edición: valores vigentes y `version`.
+ACCIONES: Elegir sentido · Buscar/seleccionar contacto activo · Crear contacto (P-003.D1) · Ingresar número, moneda, total, emisión · Elegir modalidad · Proponer cuotas · Editar fecha/importe de cada cuota · Agregar/quitar cuota (en edición, manteniendo 1–120) · Guardar · Cancelar.
 
 --- DESIGN TOKENS ---
-[Pegar los design tokens desde 09-ui-spec.md]
+PALETA DE COLORES:
+Base: shadcn/ui (Radix + Tailwind). Los tokens se declaran como variables CSS en `:root` y se mapean en `tailwind.config` (`colors.primary = 'var(--color-primario)'`, etc.). Todos los pares texto/fondo indicados fueron verificados con la fórmula de contraste WCAG 2.x.
+
+### Paleta de colores — tema claro (por defecto)
+
+| Token | Hex | Uso | Contraste verificado |
+|---|---|---|---|
+| `--color-primario` | `#0B5FA5` | Botón primario, enlaces, ítem activo, foco, serie «Cobros» | 6.57:1 sobre `#FFFFFF`; 6.28:1 sobre fondo |
+| `--color-primario-texto` | `#FFFFFF` | Texto sobre primario | 6.57:1 |
+| `--color-primario-hover` | `#094C84` | Hover/activo del primario | > 6.57:1 |
+| `--color-primario-suave` | `#E0EEFA` | Fondo de ítem activo, filas seleccionadas | primario sobre él: 5.57:1 |
+| `--color-secundario` | `#0F766E` | Serie «Pagos» del gráfico, acciones secundarias destacadas | 5.47:1 sobre blanco |
+| `--color-acento` | `#B45309` | Advertencias, marca «Reprogramada», «Por vencer» destacado | 5.02:1 sobre blanco |
+| `--color-peligro` | `#B91C1C` | Errores, botones destructivos, importes vencidos | 6.47:1 sobre blanco |
+| `--color-exito` | `#15803D` | Confirmaciones, CANCELADA, Enviado | 5.02:1 sobre blanco |
+| `--color-fondo` | `#F8FAFC` | Fondo de la aplicación | — |
+| `--color-superficie` | `#FFFFFF` | Cards, diálogos, tablas | — |
+| `--color-texto` | `#0F172A` | Texto principal | 17.06:1 sobre fondo |
+| `--color-texto-secundario` | `#475569` | Ayudas, metadatos, leyenda de corte | 7.58:1 sobre blanco; 7.24:1 sobre fondo |
+| `--color-borde-control` | `#64748B` | Borde de inputs, selects, casillas (WCAG 1.4.11 ≥ 3:1) | 4.76:1 sobre blanco |
+| `--color-borde-sutil` | `#E2E8F0` | Divisores decorativos, bordes de Card | (decorativo) |
+| `--color-foco` | `#0B5FA5` | Anillo de foco: 2 px sólido + 2 px de separación | 6.57:1 |
+
+**Badges de estado (texto oscuro sobre fondo tenue):**
+
+| Token | Texto | Fondo | Contraste |
+|---|---|---|---|
+| `estado-vencida` | `#991B1B` | `#FEE2E2` | 6.80:1 |
+| `estado-cancelada` / `aviso-enviado` | `#166534` | `#DCFCE7` | 6.49:1 |
+| `marca-reprogramada` / advertencia | `#92400E` | `#FEF3C7` | 6.37:1 |
+| `estado-pendiente` / `aviso-en-proceso` | `#1E40AF` | `#DBEAFE` | 7.15:1 |
+| `estado-anulado` / `aviso-no-enviado` | `#334155` | `#E2E8F0` | 8.40:1 |
+
+### Paleta — tema oscuro (opcional, respeta `prefers-color-scheme`)
+
+| Token | Hex | Contraste verificado |
+|---|---|---|
+| `--color-fondo` | `#0B1220` | — |
+| `--color-superficie` | `#111A2E` | — |
+| `--color-texto` | `#F8FAFC` | 17.89:1 sobre fondo |
+| `--color-texto-secundario` | `#94A3B8` | 7.30:1 sobre fondo |
+| `--color-primario` | `#60A5FA` (texto del botón: `#0B1220`) | 7.36:1 |
+| `--color-secundario` | `#2DD4BF` | 10.06:1 |
+| `--color-acento` | `#FBBF24` | 11.22:1 |
+| `--color-peligro` | `#F87171` | 6.77:1 |
+| `--color-exito` | `#4ADE80` | 10.74:1 |
+| `--color-borde-control` | `#7C8BA1` | 5.01:1 sobre superficie |
+
+TIPOGRAFIA:
+
+| Token | Valor |
+|---|---|
+| Familia | `"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` (Inter cubre á, é, í, ó, ú, ñ, ü) |
+| Números | `font-variant-numeric: tabular-nums` en importes, fechas y tablas |
+| Tamaño base | 16 px (1 rem); nunca menor que 14 px en texto de contenido |
+| Interlineado | 1.5 en texto; 1.25 en títulos |
+| Escala | `--texto-xs` 12 px (solo metadatos no esenciales) · `--texto-sm` 14 px (tablas, ayudas) · `--texto-base` 16 px · `--texto-lg` 18 px · `--texto-xl` 20 px (h3) · `--texto-2xl` 24 px (h2) · `--texto-3xl` 30 px (h1 y cifras de indicadores) |
+| Pesos | 400 normal · 500 etiquetas y encabezados de tabla · 600 títulos y botones · 700 cifras de indicadores |
+| Ajuste de texto | Soporta zoom al 200 % y `text-spacing` (WCAG 1.4.4 y 1.4.12) sin cortar contenido |
+
+COMPONENTES:
+
+| Componente | Especificación |
+|---|---|
+| Botón (`Button`) | Alto 40 px escritorio / 44 px móvil; padding horizontal 16 px; texto 14–16 px peso 600; variantes `primario`, `secundario` (borde `--color-borde-control`), `fantasma`, `destructivo`; estado «cargando» con spinner + texto. Botón solo icono: 40×40 px con `aria-label`. |
+| Input / Select / Combobox | Alto 40 px (44 px móvil); borde 1 px `--color-borde-control`; etiqueta visible encima (14 px, 500); ayuda debajo (14 px secundario); error debajo (14 px peligro, con icono y texto). |
+| Casilla / radio | Caja de 20 px con área clicable ≥ 24×24 px (etiqueta incluida en el área). |
+| Badge | Alto 24 px, padding 8 px, texto 12–14 px peso 500, radio 4 px, siempre con texto. |
+| Card de indicador | Padding 20 px; título 14 px; cifra 30 px peso 700; pie 14 px. Alto mínimo 120 px. |
+| Tabla | Fila 48 px (compacta 40 px); encabezado 14 px peso 500, fondo `--color-fondo`; importes alineados a la derecha. |
+| Diálogo | Ancho 480 px (confirmaciones), 560 px (formularios), 720 px (confirmar envío); pantalla completa en < 640 px; foco atrapado; `Esc` cierra salvo durante «Enviando…». |
+| Toast | Ancho 360 px, esquina inferior derecha (superior en móvil), 5 s; los errores **no** usan toast sino Alert persistente. |
+| Header / Sidebar | 64 px / 248 px en escritorio; 56 px de header en móvil. |
+| Anillo de foco | `outline: 2px solid var(--color-foco); outline-offset: 2px;` en todo elemento interactivo; nunca `outline: none` sin reemplazo. |
 
 --- REGLAS DE NEGOCIO RELEVANTES ---
-[Pegar las reglas que aplican a esta pantalla desde 03-reglas-denegocio.md]
+RN-001: Moneda original del comprobante
+CUANDO el usuario registre un comprobante,
+ENTONCES el sistema debe conservar su moneda original sin convertir el importe a otra moneda.
+
+RN-002: Monedas permitidas
+CUANDO el usuario seleccione la moneda del comprobante,
+ENTONCES solo debe poder elegir soles (S/) o dólares estadounidenses (US$); cualquier otra moneda impide guardar.
+
+RN-003: Rechazo de comprobantes duplicados
+CUANDO el usuario registre o edite un comprobante cuyo número normalizado ya exista en otro comprobante no anulado de la misma empresa y del mismo tipo de movimiento,
+ENTONCES el sistema debe rechazar el guardado por duplicado; en cuentas por pagar, la comparación debe hacerse además dentro del mismo proveedor.
+CUANDO el comprobante anterior con ese número esté anulado,
+ENTONCES el sistema debe permitir reutilizar el número en un comprobante nuevo, sujeto a las demás validaciones.
+
+RN-004: Número compartido entre tipos de movimiento
+CUANDO exista un comprobante por cobrar con un número de documento,
+ENTONCES el sistema debe permitir registrar otro por pagar con ese mismo número dentro de la misma empresa, y viceversa.
+
+RN-005: Registro sin consulta a SUNAT
+CUANDO el usuario registre un comprobante,
+ENTONCES el sistema no debe consultar ni validar su número de documento en SUNAT.
+
+RN-093: Normalización y formato del número de documento
+CUANDO el usuario ingrese el número de documento,
+ENTONCES el sistema debe quitar los espacios exteriores, convertirlo a mayúsculas y usar ese valor para guardarlo y comprobar duplicados, sin completar ceros ni alterar su formato.
+CUANDO el número normalizado esté vacío, supere 30 caracteres o contenga espacios internos o caracteres distintos de letras, dígitos, guion (-) y guion bajo (_),
+ENTONCES el sistema debe rechazarlo conforme a RN-162.
+
+RN-130: Selección de contacto activo
+CUANDO el usuario registre un comprobante o cambie su contacto,
+ENTONCES debe buscar y seleccionar un contacto ACTIVO de su empresa; el sistema no debe aceptar contactos desactivados ni de otras empresas.
+CUANDO el usuario cree un contacto mediante el alta rápida,
+ENTONCES el contacto debe crearse ACTIVO y quedar disponible para seleccionarlo en el comprobante.
+
+RN-131: Datos obligatorios del comprobante
+CUANDO el usuario intente guardar un comprobante,
+ENTONCES el sistema debe exigir tipo de movimiento (por cobrar o por pagar), contacto, número de documento no vacío tras quitar espacios exteriores, moneda, total, fecha de emisión y al menos una cuota.
+CUANDO falte alguno de esos datos,
+ENTONCES el sistema no debe guardar y debe indicar los campos pendientes.
+
+RN-132: Total mayor que cero
+CUANDO el usuario ingrese un total igual o menor que cero,
+ENTONCES el sistema debe impedir el guardado; el total también debe cumplir el formato y la precisión de RN-153.
+
+RN-133: Fecha de emisión no futura
+CUANDO el usuario registre o edite un comprobante,
+ENTONCES la fecha de emisión debe ser igual o anterior a la fecha de registro o edición; una emisión futura impide guardar.
+
+RN-015: Propuesta mensual de cuotas editable
+CUANDO el usuario elija «En cuotas» e indique una cantidad válida,
+ENTONCES el sistema debe proponer cuotas de importe igual, salvo la diferencia de céntimos de RN-016, con vencimientos mensuales calculados siempre desde la fecha de emisión.
+CUANDO se calculen las fechas propuestas,
+ENTONCES la primera cuota debe vencer un mes calendario después de la emisión y las siguientes deben conservar el día de la fecha de emisión; si ese día no existe en el mes, debe usarse el último día de ese mes.
+CUANDO el usuario cambie las fechas o los importes propuestos antes de guardar,
+ENTONCES el sistema debe conservar lo ingresado, sujeto a las validaciones, porque la propuesta es solo una ayuda.
+
+RN-016: Suma de cuotas igual al total
+CUANDO el sistema proponga el reparto automático,
+ENTONCES debe dividir el total entre la cantidad de cuotas, truncar el importe base a céntimos y asignar a la última cuota la diferencia necesaria para igualar el total.
+CUANDO la suma de los importes ingresados sea distinta del total,
+ENTONCES el sistema debe impedir el guardado, mostrar en el formulario la diferencia entre la suma y el total y no ajustar ninguna cuota por su cuenta.
+
+RN-017: Edición del vencimiento de las cuotas
+CUANDO el usuario cambie el vencimiento de una cuota, antes o después de guardar el comprobante,
+ENTONCES el sistema debe permitirlo solo si el comprobante no está anulado y no tiene pagos ni reprogramaciones registrados, aplicando las validaciones de registro y edición.
+
+RN-018: Edición del importe de las cuotas
+CUANDO el usuario cambie el importe de una cuota, antes o después de guardar el comprobante,
+ENTONCES el sistema debe permitirlo solo si el comprobante no está anulado y no tiene pagos ni reprogramaciones registrados, manteniendo la suma de cuotas igual al total y las demás validaciones.
+
+RN-019: Importe de cuota mayor que cero
+CUANDO el usuario ingrese una cuota con importe igual o menor que cero,
+ENTONCES el sistema debe impedir su guardado; cada cuota debe tener al menos 0.01 en la moneda del comprobante.
+
+RN-020: Vencimiento posterior a la emisión
+CUANDO el usuario ingrese o edite el vencimiento de una cuota,
+ENTONCES debe ser estrictamente posterior a la fecha de emisión; una fecha igual o anterior impide guardar.
+
+RN-057: Pago único
+CUANDO el usuario elija «Pago único»,
+ENTONCES el sistema debe crear exactamente una cuota por el total del comprobante, con el vencimiento indicado por el usuario, sin pedir una cantidad de cuotas.
+
+RN-121: Vencimientos estrictamente crecientes
+CUANDO el usuario registre o edite las fechas de las cuotas,
+ENTONCES cada vencimiento debe ser posterior al de la cuota anterior según su número; fechas iguales o fuera de orden impiden guardar.
+
+RN-122: Máximo de cuotas según el total
+CUANDO la cantidad de cuotas supere los céntimos del total,
+ENTONCES el sistema no debe proponer el reparto ni guardar y debe informar el máximo posible: el menor entre 120 y los céntimos del total.
+CUANDO ese máximo sea menor que 2, como en un total de S/ 0.01 o US$ 0.01,
+ENTONCES el sistema debe informar que solo procede «Pago único».
+
+RN-153: Formato y precisión de los importes
+CUANDO el usuario ingrese el total o el importe de una cuota,
+ENTONCES debe usar punto decimal con cero, una o dos cifras decimales y coma de miles obligatoria desde 1,000, agrupando de tres en tres; el máximo es 999,999,999,999.99.
+CUANDO el importe tenga formato inválido, espacios, signos, texto, notación científica, más de dos decimales o más de 12 dígitos enteros,
+ENTONCES el sistema debe rechazarlo sin redondearlo ni truncarlo silenciosamente e impedir el ingreso de valores negativos.
+CUANDO se envíen importes al API,
+ENTONCES la interfaz debe convertirlos a cadenas decimales canónicas sin coma de miles, por ejemplo «1,000.50» a «1000.50»; el API debe validar y rechazar números JSON de coma flotante. Los cálculos deben realizarse en céntimos.
+
+RN-154: Cantidad válida de cuotas
+CUANDO el usuario elija «En cuotas»,
+ENTONCES debe ingresar una cantidad entera entre 2 y 120, sin superar los céntimos del total; se deben rechazar cero, negativos, fracciones, «3.0», «3,0», notación científica y texto.
+CUANDO el usuario agregue o quite cuotas durante la edición,
+ENTONCES el comprobante debe conservar entre 1 y 120 cuotas, con importes válidos y suma igual al total; no puede quedar sin cuotas.
+CUANDO la cantidad supere el máximo permitido,
+ENTONCES la interfaz debe mostrar ese máximo y el API debe aplicar la misma validación.
+
+RN-081: Edición de comprobante elegible
+CUANDO cualquier usuario de la empresa edite un comprobante no anulado y sin pagos ni reprogramaciones registrados,
+ENTONCES el sistema debe permitir cambiar contacto, número de documento, moneda, fecha de emisión, total y cuotas, aplicando las mismas validaciones que en el registro.
+
+RN-082: Bloqueo de edición por movimientos o anulación
+CUANDO el comprobante esté anulado o tenga al menos un pago o una reprogramación registrados, incluidos los pagos anulados,
+ENTONCES el sistema debe impedir su edición; anular los pagos no vuelve a habilitarla.
+CUANDO se registre un pago o una reprogramación mientras otro usuario edita y ese movimiento se guarde primero,
+ENTONCES el sistema debe rechazar la edición sin registrar cambios ni historial de edición.
+CUANDO se requiera corregir fechas con S1 entregada,
+ENTONCES debe usarse una reprogramación válida; sin S1, la corrección exige anular los pagos vigentes, anular el comprobante elegible y registrarlo de nuevo, conservando el original y su auditoría. Este último procedimiento también aplica para corregir otros datos.
+
+RN-083: Historial de cambios por campo
+CUANDO se guarde una edición de un comprobante,
+ENTONCES el sistema debe registrar por cada campo cambiado el valor anterior, el valor nuevo, el identificador del usuario y la fecha y hora en formato ISO 8601.
 </contexto>
 
 <tarea>

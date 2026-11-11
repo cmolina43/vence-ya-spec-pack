@@ -4,16 +4,225 @@ Eres un desarrollador frontend senior. Tu trabajo es convertir un wireframe text
 </agente>
 
 <contexto>
-Estoy prototipando la pantalla [NOMBRE_PANTALLA] de [NOMBRE_PROYECTO].
+Estoy prototipando la pantalla "P-003 Contactos" de VenceYa.
 
 --- SCREEN SPEC ---
-[Pegar la screen spec de la pantalla desde 09-ui-spec.md]
+PANTALLA: P-003 Contactos
+ACTOR: Todos los roles.
+HUs: HU-004 (Must). HU-013 indicador de comportamiento (Should, pendiente de aprobación; columna oculta hasta S3).
+PROPOSITO: Autenticar a un usuario de la empresa con correo y contraseña.
+
+WIREFRAME TEXTUAL:
+```text
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│ <h1>Contactos</h1>                                          [+ Nuevo contacto]       │
+│ Buscar por nombre [                     🔍]   Estado [Activos ▾ | Desactivados | Todos]│
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│ ┌───────────────────────┬──────────────────────────┬────────────┬───────────────────┬──────────┬────────┐
+│ │ Nombre                │ Correo                   │ Teléfono   │ Relación          │ Estado   │Acciones│
+│ ├───────────────────────┼──────────────────────────┼────────────┼───────────────────┼──────────┼────────┤
+│ │ DISTRIBUIDORA LIMA    │ ventas@distlima.example  │ 987654321  │ Cliente           │[ACTIVO]  │ [⋯]    │
+│ │ TEXTILES SUR          │ pagos@textsur.example    │ —          │ Cliente y proveedor│[ACTIVO] │ [⋯]    │
+│ │ FERRETERÍA NORTE      │ admin@fnorte.example     │ —          │ Sin comprobantes  │[DESACT.] │ [⋯]    │
+│ └───────────────────────┴──────────────────────────┴────────────┴───────────────────┴──────────┴────────┘
+│ Menú [⋯] (DropdownMenu, aria-label="Acciones de DISTRIBUIDORA LIMA"):                │
+│   Editar · Ver comprobantes · Desactivar | Reactivar · Eliminar (solo si «Sin compr.»)│
+│ « Anterior  1 2 3  Siguiente »                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**P-003.D1 Diálogo «Nuevo contacto» / «Editar contacto»** (`Dialog`, ancho 560 px; `Sheet` a pantalla completa en móvil):
+
+```text
+┌ <h2>Nuevo contacto</h2> ─────────────────────────── [✕ Cerrar] ┐
+│ Resumen de errores (si hay)                                     │
+│ Nombre o razón social *                                         │
+│ [                                                   ]  0/250    │
+│ Ayuda: «Letras, números, espacios y . , & - ' ( ) /»            │
+│ Correo electrónico *                                            │
+│ [                                                   ]           │
+│ Teléfono (opcional)                                             │
+│ [                     ]                                         │
+│ Dirección (opcional)                                            │
+│ [                                                   ]           │
+│ Nota fija: «VenceYa no solicita DNI, RUC ni datos bancarios.»   │
+│                               [Cancelar]  [Guardar contacto]    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**P-003.D2 Diálogo «Eliminar contacto»** (`AlertDialog`):
+
+```text
+┌ <h2>¿Eliminar a DISTRIBUIDORA LIMA?</h2> ─────────────────────┐
+│ Esta acción no se puede deshacer. El contacto no tiene        │
+│ comprobantes registrados. Su historial de cambios se conserva.│
+│                                [Cancelar]  [Eliminar] (rojo)  │
+└───────────────────────────────────────────────────────────────┘
+```
+
+DATOS: Nombre, correo, teléfono, dirección, estado (ACTIVO/DESACTIVADO), rol derivado («Cliente», «Proveedor», «Cliente y proveedor», «Sin comprobantes»). S3: «88 · Buen pagador».
+ACCIONES: Buscar por nombre · Filtrar por estado · Nuevo contacto (P-003.D1) · Editar (P-003.D1) · Desactivar · Reactivar · Eliminar (P-003.D2, solo sin comprobantes) · Ver comprobantes del contacto (P-004 filtrado).
 
 --- DESIGN TOKENS ---
-[Pegar los design tokens desde 09-ui-spec.md]
+PALETA DE COLORES:
+Base: shadcn/ui (Radix + Tailwind). Los tokens se declaran como variables CSS en `:root` y se mapean en `tailwind.config` (`colors.primary = 'var(--color-primario)'`, etc.). Todos los pares texto/fondo indicados fueron verificados con la fórmula de contraste WCAG 2.x.
+
+### Paleta de colores — tema claro (por defecto)
+
+| Token | Hex | Uso | Contraste verificado |
+|---|---|---|---|
+| `--color-primario` | `#0B5FA5` | Botón primario, enlaces, ítem activo, foco, serie «Cobros» | 6.57:1 sobre `#FFFFFF`; 6.28:1 sobre fondo |
+| `--color-primario-texto` | `#FFFFFF` | Texto sobre primario | 6.57:1 |
+| `--color-primario-hover` | `#094C84` | Hover/activo del primario | > 6.57:1 |
+| `--color-primario-suave` | `#E0EEFA` | Fondo de ítem activo, filas seleccionadas | primario sobre él: 5.57:1 |
+| `--color-secundario` | `#0F766E` | Serie «Pagos» del gráfico, acciones secundarias destacadas | 5.47:1 sobre blanco |
+| `--color-acento` | `#B45309` | Advertencias, marca «Reprogramada», «Por vencer» destacado | 5.02:1 sobre blanco |
+| `--color-peligro` | `#B91C1C` | Errores, botones destructivos, importes vencidos | 6.47:1 sobre blanco |
+| `--color-exito` | `#15803D` | Confirmaciones, CANCELADA, Enviado | 5.02:1 sobre blanco |
+| `--color-fondo` | `#F8FAFC` | Fondo de la aplicación | — |
+| `--color-superficie` | `#FFFFFF` | Cards, diálogos, tablas | — |
+| `--color-texto` | `#0F172A` | Texto principal | 17.06:1 sobre fondo |
+| `--color-texto-secundario` | `#475569` | Ayudas, metadatos, leyenda de corte | 7.58:1 sobre blanco; 7.24:1 sobre fondo |
+| `--color-borde-control` | `#64748B` | Borde de inputs, selects, casillas (WCAG 1.4.11 ≥ 3:1) | 4.76:1 sobre blanco |
+| `--color-borde-sutil` | `#E2E8F0` | Divisores decorativos, bordes de Card | (decorativo) |
+| `--color-foco` | `#0B5FA5` | Anillo de foco: 2 px sólido + 2 px de separación | 6.57:1 |
+
+**Badges de estado (texto oscuro sobre fondo tenue):**
+
+| Token | Texto | Fondo | Contraste |
+|---|---|---|---|
+| `estado-vencida` | `#991B1B` | `#FEE2E2` | 6.80:1 |
+| `estado-cancelada` / `aviso-enviado` | `#166534` | `#DCFCE7` | 6.49:1 |
+| `marca-reprogramada` / advertencia | `#92400E` | `#FEF3C7` | 6.37:1 |
+| `estado-pendiente` / `aviso-en-proceso` | `#1E40AF` | `#DBEAFE` | 7.15:1 |
+| `estado-anulado` / `aviso-no-enviado` | `#334155` | `#E2E8F0` | 8.40:1 |
+
+### Paleta — tema oscuro (opcional, respeta `prefers-color-scheme`)
+
+| Token | Hex | Contraste verificado |
+|---|---|---|
+| `--color-fondo` | `#0B1220` | — |
+| `--color-superficie` | `#111A2E` | — |
+| `--color-texto` | `#F8FAFC` | 17.89:1 sobre fondo |
+| `--color-texto-secundario` | `#94A3B8` | 7.30:1 sobre fondo |
+| `--color-primario` | `#60A5FA` (texto del botón: `#0B1220`) | 7.36:1 |
+| `--color-secundario` | `#2DD4BF` | 10.06:1 |
+| `--color-acento` | `#FBBF24` | 11.22:1 |
+| `--color-peligro` | `#F87171` | 6.77:1 |
+| `--color-exito` | `#4ADE80` | 10.74:1 |
+| `--color-borde-control` | `#7C8BA1` | 5.01:1 sobre superficie |
+
+TIPOGRAFIA:
+
+| Token | Valor |
+|---|---|
+| Familia | `"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` (Inter cubre á, é, í, ó, ú, ñ, ü) |
+| Números | `font-variant-numeric: tabular-nums` en importes, fechas y tablas |
+| Tamaño base | 16 px (1 rem); nunca menor que 14 px en texto de contenido |
+| Interlineado | 1.5 en texto; 1.25 en títulos |
+| Escala | `--texto-xs` 12 px (solo metadatos no esenciales) · `--texto-sm` 14 px (tablas, ayudas) · `--texto-base` 16 px · `--texto-lg` 18 px · `--texto-xl` 20 px (h3) · `--texto-2xl` 24 px (h2) · `--texto-3xl` 30 px (h1 y cifras de indicadores) |
+| Pesos | 400 normal · 500 etiquetas y encabezados de tabla · 600 títulos y botones · 700 cifras de indicadores |
+| Ajuste de texto | Soporta zoom al 200 % y `text-spacing` (WCAG 1.4.4 y 1.4.12) sin cortar contenido |
+
+COMPONENTES:
+
+| Componente | Especificación |
+|---|---|
+| Botón (`Button`) | Alto 40 px escritorio / 44 px móvil; padding horizontal 16 px; texto 14–16 px peso 600; variantes `primario`, `secundario` (borde `--color-borde-control`), `fantasma`, `destructivo`; estado «cargando» con spinner + texto. Botón solo icono: 40×40 px con `aria-label`. |
+| Input / Select / Combobox | Alto 40 px (44 px móvil); borde 1 px `--color-borde-control`; etiqueta visible encima (14 px, 500); ayuda debajo (14 px secundario); error debajo (14 px peligro, con icono y texto). |
+| Casilla / radio | Caja de 20 px con área clicable ≥ 24×24 px (etiqueta incluida en el área). |
+| Badge | Alto 24 px, padding 8 px, texto 12–14 px peso 500, radio 4 px, siempre con texto. |
+| Card de indicador | Padding 20 px; título 14 px; cifra 30 px peso 700; pie 14 px. Alto mínimo 120 px. |
+| Tabla | Fila 48 px (compacta 40 px); encabezado 14 px peso 500, fondo `--color-fondo`; importes alineados a la derecha. |
+| Diálogo | Ancho 480 px (confirmaciones), 560 px (formularios), 720 px (confirmar envío); pantalla completa en < 640 px; foco atrapado; `Esc` cierra salvo durante «Enviando…». |
+| Toast | Ancho 360 px, esquina inferior derecha (superior en móvil), 5 s; los errores **no** usan toast sino Alert persistente. |
+| Header / Sidebar | 64 px / 248 px en escritorio; 56 px de header en móvil. |
+| Anillo de foco | `outline: 2px solid var(--color-foco); outline-offset: 2px;` en todo elemento interactivo; nunca `outline: none` sin reemplazo. |
 
 --- REGLAS DE NEGOCIO RELEVANTES ---
-[Pegar las reglas que aplican a esta pantalla desde 03-reglas-denegocio.md]
+RN-126: Datos obligatorios del contacto
+CUANDO se registre un contacto,
+ENTONCES se debe exigir nombre de la persona o razón social y correo electrónico; teléfono y dirección son opcionales.
+CUANDO el nombre o el correo queden vacíos después de quitar los espacios exteriores,
+ENTONCES se debe rechazar el registro e informar el dato faltante.
+CUANDO se muestre el formulario de contacto,
+ENTONCES no se debe solicitar DNI ni RUC.
+
+RN-127: Correo único por empresa
+CUANDO se registre o edite un contacto y su correo normalizado ya pertenezca a otro contacto de la misma empresa, incluso DESACTIVADO,
+ENTONCES se debe rechazar el guardado e informar que el correo ya está registrado, sin revelar contactos de otras empresas.
+CUANDO el mismo correo pertenezca únicamente a un contacto de otra empresa,
+ENTONCES se debe permitir su registro, sujeto a las demás validaciones.
+CUANDO se desactive un contacto,
+ENTONCES su correo debe seguir reservado.
+CUANDO se elimine un contacto conforme a RN-130,
+ENTONCES su correo debe quedar disponible para un contacto nuevo con otro identificador, sin recuperar el historial del eliminado.
+
+RN-128: Relación de cliente y proveedor derivada
+CUANDO se muestre la relación de un contacto,
+ENTONCES debe indicarse «Cliente» si tiene comprobantes por cobrar, «Proveedor» si tiene comprobantes por pagar, «Cliente y proveedor» si tiene ambos o «Sin comprobantes» si no tiene ninguno.
+CUANDO se registre o edite un contacto,
+ENTONCES no se debe exigir ni asignar un tipo fijo de cliente o proveedor ni duplicar el contacto para representar ambas relaciones.
+
+RN-129: Edición e historial por campo
+CUANDO se edite un contacto ACTIVO o DESACTIVADO, aunque tenga cuotas con saldo,
+ENTONCES se debe permitir cambiar nombre, correo, teléfono y dirección, aplicando las mismas validaciones del registro.
+CUANDO se guarde un cambio,
+ENTONCES se debe conservar por cada campo modificado el valor anterior, el valor nuevo, el identificador del usuario y la fecha y hora de edición en formato ISO 8601.
+CUANDO se envíen avisos posteriores a un cambio de correo,
+ENTONCES se debe utilizar el correo nuevo.
+
+RN-130: Estados, catálogo compartido y eliminación con confirmación
+CUANDO cualquier usuario de la empresa acceda al catálogo,
+ENTONCES debe poder crear, editar, desactivar, reactivar y, cuando corresponda, eliminar contactos de su empresa, sin mostrar contactos de otras empresas.
+CUANDO se cree un contacto,
+ENTONCES debe quedar ACTIVO; los únicos estados permitidos son ACTIVO y DESACTIVADO.
+CUANDO se desactive un contacto,
+ENTONCES deben conservarse sus datos, comprobantes, cuotas, historial y reserva de correo; no debe poder seleccionarse al registrar o cambiar el contacto de un comprobante, pero sus cuotas con saldo deben seguir disponibles para avisos si cumplen las validaciones de envío.
+CUANDO se reactive un contacto,
+ENTONCES debe volver a ACTIVO y estar disponible para seleccionar en comprobantes.
+CUANDO se intente eliminar un contacto con al menos un comprobante, incluidos los anulados,
+ENTONCES se debe impedir la eliminación y ofrecer desactivarlo.
+CUANDO se solicite eliminar un contacto ACTIVO o DESACTIVADO sin comprobantes,
+ENTONCES se debe pedir confirmación explícita y, al confirmar, verificar de nuevo en el servidor que siga sin comprobantes antes de eliminarlo y liberar su correo como una sola operación.
+CUANDO otro usuario registre un comprobante concurrentemente con la eliminación,
+ENTONCES solo debe completarse la operación que se guarde primero; si ya existe el comprobante, se debe rechazar la eliminación y ofrecer desactivar el contacto, sin dejar comprobantes sin contacto.
+CUANDO se complete la eliminación,
+ENTONCES debe conservarse sin cambios el historial de ediciones, sin vincularlo a un contacto nuevo que reutilice el correo, y no deben borrarse ni modificarse comprobantes, cuotas o pagos.
+
+RN-162: Validación y normalización del nombre y correo
+CUANDO se registre o edite un contacto,
+ENTONCES el servidor debe quitar los espacios exteriores, convertir el nombre a mayúsculas y el correo a minúsculas y validar obligatoriedad, longitud y caracteres sobre los valores normalizados; la interfaz debe mostrar los valores devueltos por el servidor.
+CUANDO se valide el nombre,
+ENTONCES debe tener de 1 a 250 caracteres, contener al menos una letra y admitir únicamente letras (incluidas tildes, ñ y ü), dígitos, espacios y los signos «.», «,», «&», «-», «'», «(», «)» y «/»; los espacios repetidos entre palabras deben reducirse a uno.
+CUANDO se valide el correo,
+ENTONCES debe tener de 1 a 250 caracteres, una sola «@», parte local y dominio no vacíos, dominio con al menos un punto y ningún espacio; no se debe verificar la existencia del buzón.
+CUANDO un valor incumpla una validación,
+ENTONCES se debe rechazar el guardado e informar el motivo, sin truncar ni corregir el valor en silencio; los límites deben contar caracteres, no bytes.
+
+RN-139: Normalización uniforme del correo
+CUANDO se registre o edite un correo o se comprueben duplicados,
+ENTONCES se deben quitar los espacios exteriores y convertirlo a minúsculas con el mismo procedimiento, de modo que « Ventas@DistLima.example » y «ventas@distlima.example» se comparen como el mismo correo.
+
+RN-006: Exclusión de datos bancarios
+CUANDO se registre, edite o consulte un contacto cliente o proveedor,
+ENTONCES no se deben solicitar ni almacenar números de cuenta ni CCI; el formulario debe informar que VenceYa no solicita DNI, RUC ni datos bancarios, conforme a PRINCIPIO-004 y RN-126.
+
+RN-044: Correo obligatorio para clientes y proveedores
+CUANDO se registre un contacto, tanto cliente como proveedor,
+ENTONCES se debe exigir un correo electrónico de formato válido y de hasta 250 caracteres, conforme a RN-162.
+
+RN-254: Desactivación y solicitudes de eliminación de datos personales
+CUANDO se desactive un contacto,
+ENTONCES la interfaz debe dejar claro que sus datos se conservan y no debe presentar la desactivación como atención de una solicitud de eliminación de datos personales.
+
+RN-255: Límites de la eliminación ordinaria
+CUANDO se elimine un contacto desde el catálogo,
+ENTONCES deben respetarse los casos admitidos por RN-130, sin autorizar el borrado de registros económicos ni afirmar que se eliminan todas las copias históricas de datos personales.
+
+RN-256: Sin seudonimización en el mantenimiento
+CUANDO se muestren los estados y acciones de un contacto,
+ENTONCES no se debe ofrecer seudonimización como estado, acción de usuario ni sustitución automática de sus datos.
 </contexto>
 
 <tarea>

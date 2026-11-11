@@ -4,16 +4,274 @@ Eres un desarrollador frontend senior. Tu trabajo es convertir un wireframe text
 </agente>
 
 <contexto>
-Estoy prototipando la pantalla [NOMBRE_PANTALLA] de [NOMBRE_PROYECTO].
+Estoy prototipando la pantalla "P-002 Panel de cartera" de VenceYa.
 
 --- SCREEN SPEC ---
-[Pegar la screen spec de la pantalla desde 09-ui-spec.md]
+PANTALLA: P-002 Panel de cartera
+ACTOR: Todos los roles (OPERADOR, SUPERVISOR, ADMINISTRADOR; incluye dueño o directiva).
+HUs: HU-008 (Must); HU-012 tarjeta de tiempo promedio de cobro (Should, bandera `FUNCIONALIDAD_S5`); HU-011 bloque de promesas activas (Should, bandera `FUNCIONALIDAD_S1`, RN-036).
+PROPOSITO: Mostrar en un solo corte cuánto está vencido y pendiente por cobrar y por pagar, la proyección de los próximos días y el listado completo de movimientos (una fila por cuota), para priorizar cobros y pagos.
+
+WIREFRAME TEXTUAL:
+
+**Wireframe (escritorio):**
+```text
+MAIN
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│ <h1>Panel de cartera</h1>                         Datos al 09/11/2026, 08:15         │
+│                                                    [⟳ Actualizar] (secundario)       │
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│ BARRA DE CONTROLES (flex, wrap)                                                      │
+│  Moneda:  ( ● S/ )( ○ US$ • Vencidos )   ← ToggleGroup tipo radio, role=radiogroup   │
+│            «US$ tiene cuotas vencidas» (texto visible junto a la opción, no solo punto)│
+│  Proyección:  ( ● 7 días )( ○ 10 días )( ○ 15 días )                                 │
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│ INDICADORES  (grid 4 col ≥1024 · 2 col tablet · 1 col móvil)  <section aria-label=   │
+│                                                              "Indicadores de cartera">│
+│ ┌ Card ───────────────┐┌ Card ───────────────┐┌ Card ──────────────┐┌ Card ─────────┐│
+│ │ Vencida por cobrar  ││ Vencida por pagar   ││ Pendiente de cobro ││ Pendiente de  ││
+│ │ S/ 4,500.00         ││ S/ 0.00             ││ S/ 8,000.00        ││ pago          ││
+│ │ (texto 30px, rojo   ││                     ││                    ││ S/ 2,000.00   ││
+│ │  si > 0)            ││                     ││                    ││               ││
+│ │ 6 cuotas · Ver ▸    ││ 0 cuotas            ││ 9 cuotas · Ver ▸   ││ 3 cuotas      ││
+│ └─────────────────────┘└─────────────────────┘└────────────────────┘└───────────────┘│
+│  «Ver ▸» aplica el filtro correspondiente al listado y lleva el foco a él.           │
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│ FILA 2 (grid 2/3 + 1/3 en escritorio; apilado en móvil)                              │
+│ ┌ Card «Próximos vencimientos (7 días)» ────────────────┐ ┌ Card S5 (Should) ────────┐│
+│ │ [Gráfico | Tabla]  ← Tabs; la tabla es la alternativa  │ │ Tiempo promedio de cobro ││
+│ │                                                         │ │ de comprobantes saldados ││
+│ │  Barras agrupadas por día (eje X: 09/11 … 15/11)        │ │ Mes: [ octubre 2026 ▾ ]  ││
+│ │  ■ Cobros (primario)  ■ Pagos (secundario, con trama)   │ │                          ││
+│ │  Eje Y: importes S/ con formato peruano                 │ │   37.50 días             ││
+│ │  Tooltip por barra: «06/11 · Cobros: S/ 600.00»         │ │ (o «Sin datos»)          ││
+│ │                                                         │ │ [Badge «Mes en curso —   ││
+│ │ Tabla (pestaña): Día | Cobros | Pagos                    │ │  datos parciales»]       ││
+│ │  2026-11-09 | S/ 0.00 | S/ 0.00 …                        │ │ Incluye S/ y US$. No     ││
+│ │ Leyenda textual bajo el gráfico:                         │ │ depende del selector.    ││
+│ │ «Total cobros 7 días: S/ 1,600.00 · Pagos: S/ 300.00»   │ └──────────────────────────┘│
+│ └─────────────────────────────────────────────────────────┘                            │
+│ ┌ Card «Promesas de pago activas» (Should S1) ────────────────────────────────────────┐│
+│ │ Contacto | Comprobante · cuota | Vencimiento original | Promesa | Saldo | Registró  ││
+│ │ (vacío: «No hay promesas activas.»)                                                 ││
+│ └─────────────────────────────────────────────────────────────────────────────────────┘│
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│ LISTADO DE MOVIMIENTOS  <section aria-labelledby="titulo-movimientos">               │
+│ <h2>Movimientos</h2>  «128 cuotas en S/»                    [Ir a avisos ▸]          │
+│ Filtros: Sentido [Todos ▾]  Estado [Todos ▾]  Buscar [contacto o comprobante   ]     │
+│          [☐ Incluir comprobantes anulados]  (Switch con etiqueta)                    │
+│ ┌────────┬───────────────────┬────────────┬───────┬────────────┬───────────┬───────────┬──────────┬────────┐
+│ │Sentido │ Contacto          │Comprobante │ Cuota │ Vencimiento│ Importe   │ Saldo     │ Estado   │ Atraso │
+│ ├────────┼───────────────────┼────────────┼───────┼────────────┼───────────┼───────────┼──────────┼────────┤
+│ │Cobrar  │ DISTRIBUIDORA LIMA│ F001-00045▸│ 1/3   │ 2026-10-01 │ 1,000.00  │ 600.00    │[VENCIDA] │ 39 días│
+│ │Pagar   │ TEXTILES SUR      │ E001-00012▸│ 2/2   │ 2026-11-12 │ 300.00    │ 300.00    │[PENDIENTE│ —      │
+│ │        │                   │            │       │            │           │           │ Reprogr.]│        │
+│ │Cobrar  │ FERRETERÍA NORTE  │ F001-00050▸│ 1/1   │ 2026-11-15 │ 500.00    │ —         │[ANULADA] │ —      │ ← solo con switch
+│ └────────┴───────────────────┴────────────┴───────┴────────────┴───────────┴───────────┴──────────┴────────┘
+│  Encabezado de la columna Importe/Saldo indica la moneda: «Importe (S/)».            │
+│  Orden por defecto RN-120; las CANCELADAS y ANULADAS van al final por fecha.        │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Wireframe (móvil):** controles apilados; indicadores en 1 columna (2 en tablet); gráfico con scroll horizontal interno si la ventana es 15 días (el contenedor tiene `tabindex="0"` y `aria-label`), pestaña «Tabla» siempre disponible; movimientos como tarjetas:
+
+DATOS: Leyenda de corte; selector de moneda con indicador de vencidos en la otra moneda; 4 indicadores (vencida por cobrar, vencida por pagar, pendiente de cobro, pendiente de pago); gráfico de proyección por día (cobros y pagos en series separadas) + tabla equivalente; listado de movimientos: sentido, contacto, comprobante, cuota n/N, fecha efectiva de vencimiento, importe, saldo, estado, marca de reprogramación (S1), días de atraso. Tarjeta S5: mes, valor en días o «Sin datos», etiqueta «Mes en curso — datos parciales».
+ACCIONES: Cambiar moneda (solo esta consulta) · Cambiar ventana 7/10/15 (se guarda como preferencia) · Ver tabla del gráfico · Actualizar (nuevo corte) · Filtrar listado (sentido, estado, texto de contacto o comprobante) · Ordenar · Incluir comprobantes anulados · Abrir comprobante (P-006) · Ir a avisos (P-007) · Elegir mes de la tarjeta S5.
 
 --- DESIGN TOKENS ---
-[Pegar los design tokens desde 09-ui-spec.md]
+PALETA DE COLORES:
+Base: shadcn/ui (Radix + Tailwind). Los tokens se declaran como variables CSS en `:root` y se mapean en `tailwind.config` (`colors.primary = 'var(--color-primario)'`, etc.). Todos los pares texto/fondo indicados fueron verificados con la fórmula de contraste WCAG 2.x.
+
+### Paleta de colores — tema claro (por defecto)
+
+| Token | Hex | Uso | Contraste verificado |
+|---|---|---|---|
+| `--color-primario` | `#0B5FA5` | Botón primario, enlaces, ítem activo, foco, serie «Cobros» | 6.57:1 sobre `#FFFFFF`; 6.28:1 sobre fondo |
+| `--color-primario-texto` | `#FFFFFF` | Texto sobre primario | 6.57:1 |
+| `--color-primario-hover` | `#094C84` | Hover/activo del primario | > 6.57:1 |
+| `--color-primario-suave` | `#E0EEFA` | Fondo de ítem activo, filas seleccionadas | primario sobre él: 5.57:1 |
+| `--color-secundario` | `#0F766E` | Serie «Pagos» del gráfico, acciones secundarias destacadas | 5.47:1 sobre blanco |
+| `--color-acento` | `#B45309` | Advertencias, marca «Reprogramada», «Por vencer» destacado | 5.02:1 sobre blanco |
+| `--color-peligro` | `#B91C1C` | Errores, botones destructivos, importes vencidos | 6.47:1 sobre blanco |
+| `--color-exito` | `#15803D` | Confirmaciones, CANCELADA, Enviado | 5.02:1 sobre blanco |
+| `--color-fondo` | `#F8FAFC` | Fondo de la aplicación | — |
+| `--color-superficie` | `#FFFFFF` | Cards, diálogos, tablas | — |
+| `--color-texto` | `#0F172A` | Texto principal | 17.06:1 sobre fondo |
+| `--color-texto-secundario` | `#475569` | Ayudas, metadatos, leyenda de corte | 7.58:1 sobre blanco; 7.24:1 sobre fondo |
+| `--color-borde-control` | `#64748B` | Borde de inputs, selects, casillas (WCAG 1.4.11 ≥ 3:1) | 4.76:1 sobre blanco |
+| `--color-borde-sutil` | `#E2E8F0` | Divisores decorativos, bordes de Card | (decorativo) |
+| `--color-foco` | `#0B5FA5` | Anillo de foco: 2 px sólido + 2 px de separación | 6.57:1 |
+
+**Badges de estado (texto oscuro sobre fondo tenue):**
+
+| Token | Texto | Fondo | Contraste |
+|---|---|---|---|
+| `estado-vencida` | `#991B1B` | `#FEE2E2` | 6.80:1 |
+| `estado-cancelada` / `aviso-enviado` | `#166534` | `#DCFCE7` | 6.49:1 |
+| `marca-reprogramada` / advertencia | `#92400E` | `#FEF3C7` | 6.37:1 |
+| `estado-pendiente` / `aviso-en-proceso` | `#1E40AF` | `#DBEAFE` | 7.15:1 |
+| `estado-anulado` / `aviso-no-enviado` | `#334155` | `#E2E8F0` | 8.40:1 |
+
+### Paleta — tema oscuro (opcional, respeta `prefers-color-scheme`)
+
+| Token | Hex | Contraste verificado |
+|---|---|---|
+| `--color-fondo` | `#0B1220` | — |
+| `--color-superficie` | `#111A2E` | — |
+| `--color-texto` | `#F8FAFC` | 17.89:1 sobre fondo |
+| `--color-texto-secundario` | `#94A3B8` | 7.30:1 sobre fondo |
+| `--color-primario` | `#60A5FA` (texto del botón: `#0B1220`) | 7.36:1 |
+| `--color-secundario` | `#2DD4BF` | 10.06:1 |
+| `--color-acento` | `#FBBF24` | 11.22:1 |
+| `--color-peligro` | `#F87171` | 6.77:1 |
+| `--color-exito` | `#4ADE80` | 10.74:1 |
+| `--color-borde-control` | `#7C8BA1` | 5.01:1 sobre superficie |
+
+TIPOGRAFIA:
+
+| Token | Valor |
+|---|---|
+| Familia | `"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` (Inter cubre á, é, í, ó, ú, ñ, ü) |
+| Números | `font-variant-numeric: tabular-nums` en importes, fechas y tablas |
+| Tamaño base | 16 px (1 rem); nunca menor que 14 px en texto de contenido |
+| Interlineado | 1.5 en texto; 1.25 en títulos |
+| Escala | `--texto-xs` 12 px (solo metadatos no esenciales) · `--texto-sm` 14 px (tablas, ayudas) · `--texto-base` 16 px · `--texto-lg` 18 px · `--texto-xl` 20 px (h3) · `--texto-2xl` 24 px (h2) · `--texto-3xl` 30 px (h1 y cifras de indicadores) |
+| Pesos | 400 normal · 500 etiquetas y encabezados de tabla · 600 títulos y botones · 700 cifras de indicadores |
+| Ajuste de texto | Soporta zoom al 200 % y `text-spacing` (WCAG 1.4.4 y 1.4.12) sin cortar contenido |
+
+COMPONENTES:
+
+| Componente | Especificación |
+|---|---|
+| Botón (`Button`) | Alto 40 px escritorio / 44 px móvil; padding horizontal 16 px; texto 14–16 px peso 600; variantes `primario`, `secundario` (borde `--color-borde-control`), `fantasma`, `destructivo`; estado «cargando» con spinner + texto. Botón solo icono: 40×40 px con `aria-label`. |
+| Input / Select / Combobox | Alto 40 px (44 px móvil); borde 1 px `--color-borde-control`; etiqueta visible encima (14 px, 500); ayuda debajo (14 px secundario); error debajo (14 px peligro, con icono y texto). |
+| Casilla / radio | Caja de 20 px con área clicable ≥ 24×24 px (etiqueta incluida en el área). |
+| Badge | Alto 24 px, padding 8 px, texto 12–14 px peso 500, radio 4 px, siempre con texto. |
+| Card de indicador | Padding 20 px; título 14 px; cifra 30 px peso 700; pie 14 px. Alto mínimo 120 px. |
+| Tabla | Fila 48 px (compacta 40 px); encabezado 14 px peso 500, fondo `--color-fondo`; importes alineados a la derecha. |
+| Diálogo | Ancho 480 px (confirmaciones), 560 px (formularios), 720 px (confirmar envío); pantalla completa en < 640 px; foco atrapado; `Esc` cierra salvo durante «Enviando…». |
+| Toast | Ancho 360 px, esquina inferior derecha (superior en móvil), 5 s; los errores **no** usan toast sino Alert persistente. |
+| Header / Sidebar | 64 px / 248 px en escritorio; 56 px de header en móvil. |
+| Anillo de foco | `outline: 2px solid var(--color-foco); outline-offset: 2px;` en todo elemento interactivo; nunca `outline: none` sin reemplazo. |
 
 --- REGLAS DE NEGOCIO RELEVANTES ---
-[Pegar las reglas que aplican a esta pantalla desde 03-reglas-denegocio.md]
+Selección correspondiente a las reglas enumeradas para P-002 en 09-ui-spec.md, desarrolladas a partir de 03-reglas-de-negocio.md. S1 y S5 solo se muestran con sus respectivas banderas activadas. La especificación de P-002 establece 7 días como ventana por defecto.
+
+RN-046: Cuatro indicadores de cartera
+CUANDO se muestre el panel,
+ENTONCES deben aparecer «Vencida por cobrar», «Vencida por pagar», «Pendiente de cobro» y «Pendiente de pago» en la moneda seleccionada, aunque sus totales sean 0.00; las cuotas CANCELADAS no deben sumar.
+
+RN-047: Separación de monedas
+CUANDO se presenten totales de cartera,
+ENTONCES deben mantenerse separados los importes en soles y dólares, sin mostrar ningún total que sume S/ con US$.
+
+RN-048: Proyección diaria de vencimientos
+CUANDO se muestre la proyección para una ventana de 7, 10 o 15 días,
+ENTONCES debe comenzar en la fecha de cálculo incluida y terminar tras completar exactamente esa cantidad de días, agrupando los saldos por fecha efectiva de vencimiento y separando cobros y pagos en dos series, sin mezclarlos en un solo total.
+CUANDO un día de la ventana no tenga vencimientos,
+ENTONCES debe mostrarse igualmente con cobros y pagos en 0.00.
+
+RN-049: Estados y comprobantes anulados en el listado
+CUANDO se abra el listado de movimientos,
+ENTONCES cada cuota de un comprobante no anulado debe mostrar PENDIENTE, VENCIDA o CANCELADA y, cuando S1 esté activada, la marca de reprogramación si corresponde; deben excluirse por defecto los comprobantes anulados y todas sus cuotas.
+CUANDO se active «Incluir comprobantes anulados»,
+ENTONCES deben incluirse sus filas conservando los demás filtros, con ANULADO en el comprobante y ANULADA por consecuencia del comprobante en sus cuotas, sin estado de pago vigente. ANULADA es una condición heredada, no un cuarto estado de pago ni una anulación independiente de cuota; incluir esas filas no debe incorporarlas a los cálculos de cartera, indicadores, avisos ni reporte de vencimientos.
+
+RN-069: Selector general de moneda
+CUANDO el usuario seleccione S/ o US$,
+ENTONCES los indicadores de cartera, la proyección y el listado deben incluir solo cuotas de esa moneda; el tiempo promedio de cobro, expresado en días, no debe cambiar.
+CUANDO la otra moneda tenga al menos una cuota VENCIDA con saldo,
+ENTONCES el selector debe indicar que esa moneda tiene cuotas vencidas, sin mostrar importes junto al indicador ni sumarlos a la moneda seleccionada.
+
+RN-105: Moneda inicial del panel
+CUANDO el usuario ingrese al panel,
+ENTONCES el selector debe iniciar con su preferencia personal; si no existe, con la moneda por defecto de la empresa; y, si tampoco existe, con S/.
+
+RN-106: Moneda por defecto de la empresa
+CUANDO un ADMINISTRADOR cambie la moneda por defecto de su empresa,
+ENTONCES debe guardarse para los siguientes ingresos al panel de los usuarios sin preferencia personal, sin sustituir la preferencia propia de quienes ya la tengan.
+
+RN-169: Preferencias personales para todos los roles
+CUANDO un OPERADOR, SUPERVISOR o ADMINISTRADOR cambie sus propias preferencias personales de moneda o ventana de proyección,
+ENTONCES el sistema debe permitirlo, respetando los valores admitidos para cada preferencia.
+
+RN-107: Vencida por cobrar
+CUANDO se calcule «Vencida por cobrar»,
+ENTONCES debe sumarse únicamente el saldo de las cuotas por cobrar VENCIDAS en la moneda seleccionada.
+
+RN-108: Vencida por pagar
+CUANDO se calcule «Vencida por pagar»,
+ENTONCES debe sumarse únicamente el saldo de las cuotas por pagar VENCIDAS en la moneda seleccionada.
+
+RN-109: Pendiente de cobro
+CUANDO se calcule «Pendiente de cobro»,
+ENTONCES debe sumarse únicamente el saldo de las cuotas por cobrar PENDIENTES en la moneda seleccionada.
+
+RN-110: Pendiente de pago
+CUANDO se calcule «Pendiente de pago»,
+ENTONCES debe sumarse únicamente el saldo de las cuotas por pagar PENDIENTES en la moneda seleccionada.
+
+RN-119: Persistencia de la ventana personal
+CUANDO el usuario seleccione una ventana válida de proyección,
+ENTONCES debe guardarse como preferencia propia y reutilizarse al abrir nuevamente el panel, respetando los permisos sobre preferencias personales.
+
+RN-180: Valores permitidos de la ventana
+CUANDO se seleccione una ventana de proyección,
+ENTONCES solo deben aceptarse 7, 10 o 15 días.
+
+RN-181: La ventana no limita los movimientos
+CUANDO el usuario cambie la ventana de proyección,
+ENTONCES esta debe aplicarse exclusivamente a la proyección y su tabla equivalente, sin limitar el listado de movimientos ni modificar los estados de las cuotas; una cuota fuera de la ventana debe seguir disponible en el listado si cumple sus filtros.
+
+RN-120: Orden de las cuotas con saldo
+CUANDO se muestre el orden por defecto del listado,
+ENTONCES deben aparecer primero las cuotas VENCIDAS por fecha efectiva ascendente y luego las PENDIENTES por fecha efectiva ascendente. Según P-002, las CANCELADAS y las ANULADAS incluidas expresamente van al final por fecha.
+
+RN-205: Momento de corte de la consulta
+CUANDO se consulte el panel,
+ENTONCES debe establecerse un corte con fecha, hora y zona horaria al inicio de una lectura coherente de los datos.
+
+RN-206: Coherencia de todos los componentes
+CUANDO se genere la respuesta del panel,
+ENTONCES todas sus filas, indicadores y totales deben usar la misma lectura del corte; los cambios registrados durante la generación deben quedar para una nueva consulta.
+
+RN-207: Leyenda del corte
+CUANDO se muestren los datos del panel,
+ENTONCES la leyenda debe ser «Datos al DD/MM/AAAA, HH:mm» en America/Lima y representar el momento del corte, sin sustituirlo por la hora de finalización.
+
+RN-208: Precisión interna del corte
+CUANDO se conserve el momento de corte de la consulta,
+ENTONCES debe mantenerse su precisión temporal interna, aunque la leyenda visible solo muestre minutos; dos cortes distintos dentro de un mismo minuto no deben considerarse la misma lectura.
+
+RN-209: Actualización conjunta del panel
+CUANDO el usuario pulse «Actualizar» o vuelva a consultar el panel,
+ENTONCES debe obtenerse un nuevo corte y actualizarse conjuntamente todos sus componentes y la leyenda.
+
+RN-210: Conservación del corte visible
+CUANDO una pantalla permanezca abierta sin actualizar sus datos,
+ENTONCES debe conservar su corte y su leyenda; el paso del tiempo no debe cambiar la leyenda por sí solo.
+
+RN-053: Cálculo del tiempo promedio de cobro (S5)
+CUANDO FUNCIONALIDAD_S5 esté activada y se calcule el indicador de un mes,
+ENTONCES deben promediarse los días entre emisión y cobro total de los comprobantes por cobrar saldados cuya fecha de cobro total pertenezca al mes, con igual peso por comprobante y sin incluir comprobantes por pagar ni anulados.
+CUANDO se determine el cobro total de un comprobante,
+ENTONCES todas sus cuotas deben tener saldo vigente cero y debe usarse la mayor fecha de cancelación real de sus cuotas, calculada con pagos no anulados.
+CUANDO se presente el promedio,
+ENTONCES debe expresarse en días con dos decimales y redondeo al más cercano con empates hacia arriba, aplicado una sola vez al promedio final y sin redondeos intermedios; debe ser global de la empresa, sin filtro ni desglose por cliente o proveedor.
+
+RN-147: Tarjeta y selección de mes del tiempo promedio de cobro (S5)
+CUANDO FUNCIONALIDAD_S5 esté activada y el usuario abra el panel,
+ENTONCES debe mostrarse a todos los roles una tarjeta separada de los cuatro indicadores, titulada «Tiempo promedio de cobro de comprobantes saldados», con el último mes calendario completo seleccionado por defecto según America/Lima.
+CUANDO el usuario elija un mes,
+ENTONCES deben admitirse meses anteriores y el actual, e impedirse meses futuros; para el actual debe mostrarse «Mes en curso — datos parciales», incluso sin datos.
+CUANDO el mes no tenga comprobantes elegibles,
+ENTONCES debe mostrarse «Sin datos» en lugar de 0.00 días; 0.00 días corresponde a comprobantes elegibles cobrados el mismo día de su emisión.
+CUANDO se consulte la tarjeta,
+ENTONCES debe incluir comprobantes en S/ y US$ sin depender del selector de moneda y usar el mismo corte coherente del panel; los meses terminados pueden cambiar por pagos registrados posteriormente o anulaciones.
+
+RN-036: Visibilidad de promesas activas (S1)
+CUANDO FUNCIONALIDAD_S1 esté activada y existan promesas de pago activas,
+ENTONCES el bloque «Promesas de pago activas» de P-002 debe mostrarlas a todos los usuarios de la empresa, sin restricción por rol.
 </contexto>
 
 <tarea>

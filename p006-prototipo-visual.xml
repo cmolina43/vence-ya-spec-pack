@@ -4,16 +4,287 @@ Eres un desarrollador frontend senior. Tu trabajo es convertir un wireframe text
 </agente>
 
 <contexto>
-Estoy prototipando la pantalla [NOMBRE_PANTALLA] de [NOMBRE_PROYECTO].
+Estoy prototipando la pantalla "P-006 Detalle de comprobante y cuotas" de VenceYa.
 
 --- SCREEN SPEC ---
-[Pegar la screen spec de la pantalla desde 09-ui-spec.md]
+PANTALLA: P-006 Detalle de comprobante y cuotas
+ACTOR: Todos los roles; anulaciones solo SUPERVISOR y ADMINISTRADOR.
+HUs: HU-005 (detalle y acceso a edición), HU-006 (registrar pago), HU-007 (anular pago o comprobante); Should: HU-011 (reprogramar), HU-017 (historial).
+PROPOSITO: Ver un comprobante con sus cuotas, saldos, estados y pagos; registrar cobros o pagos; anular pagos o el comprobante; acceder a edición, reprogramación e historial.
+
+WIREFRAME TEXTUAL:
+```text
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│ Migas: Comprobantes / F001-00045                                                     │
+│ <h1>F001-00045</h1> [Por cobrar]  [ANULADO]*            [Editar] [⋯ Más ▾]           │
+│                                                         Más: Anular comprobante (SUP/ADM)│
+│ * Si está anulado: Alert gris «Comprobante anulado el 2026-11-08 10:12 por           │
+│   ANA TORRES. Motivo: NÚMERO DUPLICADO. Es de solo lectura.»                         │
+│   [Registrar comprobante nuevo con estos datos]                                      │
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│ CABECERA (Card, <dl> en grid 3 col / 1 col móvil)                                    │
+│  Contacto: DISTRIBUIDORA LIMA ▸     Emisión: 2026-11-04       Moneda: US$            │
+│  Total: US$ 3,000.00                Forma: 3 cuotas           Saldo: US$ 2,000.00    │
+│  Registrado por: LUIS PAZ · 2026-11-04 15:02                                         │
+│  [Editar] visible solo si editable; si no, texto: «No editable: tiene pagos          │
+│   registrados.» (aria-describedby del botón deshabilitado con aria-disabled)         │
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│ <h2>Cuotas</h2>                                                                       │
+│ ┌────┬────────────┬────────────┬──────────────┬──────────────┬──────────────┬─────────┬─────────────────────────┐
+│ │ N° │ Vencimiento│ Fecha efect.│ Importe     │ Pagado       │ Saldo        │ Estado  │ Acciones                │
+│ │    │ original   │ (S1)        │             │              │              │         │                         │
+│ ├────┼────────────┼────────────┼──────────────┼──────────────┼──────────────┼─────────┼─────────────────────────┤
+│ │ 1  │ 2026-12-04 │ —          │ 1,000.00     │ 1,000.00     │ 0.00         │[CANCEL.]│ [▾ Pagos (2)]            │
+│ │ 2  │ 2027-01-04 │ 2027-01-20 │ 1,000.00     │ 0.00         │ 1,000.00     │[PEND.]  │ [Registrar pago] [▾ Pagos]│
+│ │    │            │ [Reprogr.] │              │              │              │         │ [⋯: Reprogramar, Historial]│
+│ │ 3  │ 2027-02-04 │ —          │ 1,000.00     │ 0.00         │ 1,000.00     │[PEND.]  │ [Registrar pago] [▾ Pagos]│
+│ └────┴────────────┴────────────┴──────────────┴──────────────┴──────────────┴─────────┴─────────────────────────┘
+│  Fila expandida «Pagos de la cuota 1» (Collapsible, aria-expanded):                  │
+│  ┌──────────────┬──────────────┬──────────────┬─────────────────────┬─────────────────┬──────────┐
+│  │ Fecha de pago│ Importe      │ Registró     │ Registrado el       │ Estado          │ Acciones │
+│  │ 2026-11-05   │ US$ 400.00   │ LUIS PAZ     │ 2026-11-05 09:40    │ Vigente         │ [Anular] │ ← SUP/ADM
+│  │ 2026-11-06   │ US$ 600.00   │ LUIS PAZ     │ 2026-11-06 11:02    │ [ANULADO]       │ —        │
+│  │              │              │              │                     │ IMPORTE ERRÓNEO │          │
+│  │              │              │              │                     │ ANA · 11-06 12:00│         │
+│  └──────────────┴──────────────┴──────────────┴─────────────────────┴─────────────────┴──────────┘
+│  Columnas «Fecha efect.» y marca solo con S1; «Historial» solo con S1 o S4.          │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**P-006.D1 Diálogo «Registrar pago»** (HU-006):
+
+```text
+┌ <h2>Registrar cobro — Cuota 2 de F001-00045</h2> ────────── [✕] ┐   (por pagar: «Registrar pago»)
+│ <dl> Contacto: DISTRIBUIDORA LIMA · Vence: 2027-01-04            │
+│      Importe de la cuota: US$ 1,000.00                           │
+│      Saldo vigente: US$ 1,000.00  ← dato del GET #36, no del error│
+│ Importe *                                                         │
+│ [US$ |                ]   Ayuda: «Hasta US$ 1,000.00»            │
+│ [Usar saldo completo] (botón link que rellena «1,000.00»)         │
+│ Fecha de pago *                                                   │
+│ [2026-11-09 📅]  Ayuda: «Entre 2026-11-05 y hoy (2026-11-09)»     │
+│   (mínimo = mayor entre emisión y la última fecha de pago vigente)│
+│ Nota: «El pago no cambia la fecha de vencimiento acordada.»       │
+│                         [Cancelar]  [Registrar pago] (primario)   │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+**P-006.D2 Diálogo «Anular pago»** (HU-007; SUP/ADM; `AlertDialog`):
+
+```text
+┌ <h2>Anular pago de US$ 400.00 del 2026-11-05</h2> ─────────────┐
+│ ⚠ La anulación es total e irreversible. El pago original se    │
+│   conserva y el saldo de la cuota se recalcula.                │
+│ Motivo de la anulación *                                       │
+│ [                                                         ]    │  Textarea, 1–500 tras recortar
+│ [                                                         ]    │
+│                                                     0/500      │  contador con aria-live=polite (cada 50)
+│ Para incorporar un pago anterior omitido, anula también los    │
+│ pagos de fechas posteriores y regístralos de nuevo en orden.   │
+│                              [Cancelar]  [Anular pago] (rojo)  │
+└────────────────────────────────────────────────────────────────┘
+```
+
+**P-006.D3 Diálogo «Anular comprobante»** (HU-007): igual que D2, con título «Anular F001-00045», texto «Sus 3 cuotas quedarán ANULADAS y dejarán de sumar en cartera, indicadores y avisos. El comprobante quedará de solo lectura.» y botón «Anular comprobante». Error `COMPROBANTE_CON_PAGOS_VIGENTES` → «Tiene pagos vigentes. Anúlalos primero.»
+
+**P-006.D4 Diálogo «Reprogramar cuota»** (HU-011, Should S1) — ver P-017.
+
+DATOS: Cabecera: sentido, número, contacto (enlace), moneda, total, emisión, modalidad, saldo total, estado ANULADO con motivo/usuario/fecha si aplica, registrado por/fecha. Cuotas: n°, vencimiento original, fecha efectiva (S1), importe, pagado, saldo, estado, días de atraso, marca reprogramada (S1), promesa activa (S1). Pagos por cuota: fecha de pago, importe, registrado por, fecha y hora de registro, estado (vigente/ANULADO con motivo, usuario y fecha de la anulación).
+ACCIONES: Registrar pago (P-006.D1) · Ver pagos de la cuota · Anular pago (P-006.D2, SUP/ADM) · Anular comprobante (P-006.D3, SUP/ADM) · Editar (P-005, solo si es editable) · Reprogramar (P-006.D4, S1) · Ver historial (P-016) · Registrar comprobante nuevo con estos datos (tras anular).
 
 --- DESIGN TOKENS ---
-[Pegar los design tokens desde 09-ui-spec.md]
+PALETA DE COLORES:
+Base: shadcn/ui (Radix + Tailwind). Los tokens se declaran como variables CSS en `:root` y se mapean en `tailwind.config` (`colors.primary = 'var(--color-primario)'`, etc.). Todos los pares texto/fondo indicados fueron verificados con la fórmula de contraste WCAG 2.x.
+
+### Paleta de colores — tema claro (por defecto)
+
+| Token | Hex | Uso | Contraste verificado |
+|---|---|---|---|
+| `--color-primario` | `#0B5FA5` | Botón primario, enlaces, ítem activo, foco, serie «Cobros» | 6.57:1 sobre `#FFFFFF`; 6.28:1 sobre fondo |
+| `--color-primario-texto` | `#FFFFFF` | Texto sobre primario | 6.57:1 |
+| `--color-primario-hover` | `#094C84` | Hover/activo del primario | > 6.57:1 |
+| `--color-primario-suave` | `#E0EEFA` | Fondo de ítem activo, filas seleccionadas | primario sobre él: 5.57:1 |
+| `--color-secundario` | `#0F766E` | Serie «Pagos» del gráfico, acciones secundarias destacadas | 5.47:1 sobre blanco |
+| `--color-acento` | `#B45309` | Advertencias, marca «Reprogramada», «Por vencer» destacado | 5.02:1 sobre blanco |
+| `--color-peligro` | `#B91C1C` | Errores, botones destructivos, importes vencidos | 6.47:1 sobre blanco |
+| `--color-exito` | `#15803D` | Confirmaciones, CANCELADA, Enviado | 5.02:1 sobre blanco |
+| `--color-fondo` | `#F8FAFC` | Fondo de la aplicación | — |
+| `--color-superficie` | `#FFFFFF` | Cards, diálogos, tablas | — |
+| `--color-texto` | `#0F172A` | Texto principal | 17.06:1 sobre fondo |
+| `--color-texto-secundario` | `#475569` | Ayudas, metadatos, leyenda de corte | 7.58:1 sobre blanco; 7.24:1 sobre fondo |
+| `--color-borde-control` | `#64748B` | Borde de inputs, selects, casillas (WCAG 1.4.11 ≥ 3:1) | 4.76:1 sobre blanco |
+| `--color-borde-sutil` | `#E2E8F0` | Divisores decorativos, bordes de Card | (decorativo) |
+| `--color-foco` | `#0B5FA5` | Anillo de foco: 2 px sólido + 2 px de separación | 6.57:1 |
+
+**Badges de estado (texto oscuro sobre fondo tenue):**
+
+| Token | Texto | Fondo | Contraste |
+|---|---|---|---|
+| `estado-vencida` | `#991B1B` | `#FEE2E2` | 6.80:1 |
+| `estado-cancelada` / `aviso-enviado` | `#166534` | `#DCFCE7` | 6.49:1 |
+| `marca-reprogramada` / advertencia | `#92400E` | `#FEF3C7` | 6.37:1 |
+| `estado-pendiente` / `aviso-en-proceso` | `#1E40AF` | `#DBEAFE` | 7.15:1 |
+| `estado-anulado` / `aviso-no-enviado` | `#334155` | `#E2E8F0` | 8.40:1 |
+
+### Paleta — tema oscuro (opcional, respeta `prefers-color-scheme`)
+
+| Token | Hex | Contraste verificado |
+|---|---|---|
+| `--color-fondo` | `#0B1220` | — |
+| `--color-superficie` | `#111A2E` | — |
+| `--color-texto` | `#F8FAFC` | 17.89:1 sobre fondo |
+| `--color-texto-secundario` | `#94A3B8` | 7.30:1 sobre fondo |
+| `--color-primario` | `#60A5FA` (texto del botón: `#0B1220`) | 7.36:1 |
+| `--color-secundario` | `#2DD4BF` | 10.06:1 |
+| `--color-acento` | `#FBBF24` | 11.22:1 |
+| `--color-peligro` | `#F87171` | 6.77:1 |
+| `--color-exito` | `#4ADE80` | 10.74:1 |
+| `--color-borde-control` | `#7C8BA1` | 5.01:1 sobre superficie |
+
+TIPOGRAFIA:
+
+| Token | Valor |
+|---|---|
+| Familia | `"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` (Inter cubre á, é, í, ó, ú, ñ, ü) |
+| Números | `font-variant-numeric: tabular-nums` en importes, fechas y tablas |
+| Tamaño base | 16 px (1 rem); nunca menor que 14 px en texto de contenido |
+| Interlineado | 1.5 en texto; 1.25 en títulos |
+| Escala | `--texto-xs` 12 px (solo metadatos no esenciales) · `--texto-sm` 14 px (tablas, ayudas) · `--texto-base` 16 px · `--texto-lg` 18 px · `--texto-xl` 20 px (h3) · `--texto-2xl` 24 px (h2) · `--texto-3xl` 30 px (h1 y cifras de indicadores) |
+| Pesos | 400 normal · 500 etiquetas y encabezados de tabla · 600 títulos y botones · 700 cifras de indicadores |
+| Ajuste de texto | Soporta zoom al 200 % y `text-spacing` (WCAG 1.4.4 y 1.4.12) sin cortar contenido |
+
+COMPONENTES:
+
+| Componente | Especificación |
+|---|---|
+| Botón (`Button`) | Alto 40 px escritorio / 44 px móvil; padding horizontal 16 px; texto 14–16 px peso 600; variantes `primario`, `secundario` (borde `--color-borde-control`), `fantasma`, `destructivo`; estado «cargando» con spinner + texto. Botón solo icono: 40×40 px con `aria-label`. |
+| Input / Select / Combobox | Alto 40 px (44 px móvil); borde 1 px `--color-borde-control`; etiqueta visible encima (14 px, 500); ayuda debajo (14 px secundario); error debajo (14 px peligro, con icono y texto). |
+| Casilla / radio | Caja de 20 px con área clicable ≥ 24×24 px (etiqueta incluida en el área). |
+| Badge | Alto 24 px, padding 8 px, texto 12–14 px peso 500, radio 4 px, siempre con texto. |
+| Card de indicador | Padding 20 px; título 14 px; cifra 30 px peso 700; pie 14 px. Alto mínimo 120 px. |
+| Tabla | Fila 48 px (compacta 40 px); encabezado 14 px peso 500, fondo `--color-fondo`; importes alineados a la derecha. |
+| Diálogo | Ancho 480 px (confirmaciones), 560 px (formularios), 720 px (confirmar envío); pantalla completa en < 640 px; foco atrapado; `Esc` cierra salvo durante «Enviando…». |
+| Toast | Ancho 360 px, esquina inferior derecha (superior en móvil), 5 s; los errores **no** usan toast sino Alert persistente. |
+| Header / Sidebar | 64 px / 248 px en escritorio; 56 px de header en móvil. |
+| Anillo de foco | `outline: 2px solid var(--color-foco); outline-offset: 2px;` en todo elemento interactivo; nunca `outline: none` sin reemplazo. |
 
 --- REGLAS DE NEGOCIO RELEVANTES ---
-[Pegar las reglas que aplican a esta pantalla desde 03-reglas-denegocio.md]
+RN-021: Cuota VENCIDA
+CUANDO la fecha efectiva de vencimiento (RN-071) de una cuota de un comprobante no anulado con saldo pendiente sea anterior a la fecha de cálculo,
+ENTONCES el sistema debe clasificar la cuota como VENCIDA (en mora) y mostrar sus días de atraso.
+CUANDO la fecha efectiva sea igual o posterior a la fecha de cálculo y la cuota tenga saldo,
+ENTONCES el sistema debe clasificarla como PENDIENTE.
+
+RN-022: Cuota CANCELADA
+CUANDO el saldo de una cuota de un comprobante no anulado sea cero,
+ENTONCES el sistema debe clasificarla como CANCELADA (pagada); CANCELADA no equivale a ANULADA.
+CUANDO se anule un pago y la cuota vuelva a tener saldo,
+ENTONCES el sistema debe reabrirla como PENDIENTE o VENCIDA sin otra acción del usuario.
+
+RN-025: Cálculo del saldo de la cuota
+CUANDO el sistema muestre el saldo de una cuota,
+ENTONCES debe calcularlo como su importe menos la suma de sus pagos no anulados.
+
+RN-024: Importe de pago positivo
+CUANDO el usuario registre un pago con importe igual o menor que cero,
+ENTONCES el sistema no debe guardarlo.
+CUANDO el usuario escriba el importe,
+ENTONCES debe usarse el formato peruano de RN-153 (punto decimal, hasta 2 decimales, coma de miles obligatoria desde 1,000, sin signo); ej.: «1,000.50».
+
+RN-026: Pago en la misma moneda de la cuota
+CUANDO el usuario registre un pago,
+ENTONCES el pago debe estar en la moneda de la cuota (S/ o US$); el campo Importe muestra esa moneda fija y no permite elegir otra.
+
+RN-092: Pago no mayor que el saldo y aplicado a una sola cuota
+CUANDO el importe del pago sea mayor que el saldo vigente de la cuota al guardar,
+ENTONCES el sistema no debe guardarlo, debe rechazarlo con IMPORTE_SUPERA_SALDO y mostrar el saldo vigente obtenido de una nueva consulta de la cuota (no del mensaje de error).
+CUANDO el importe sea igual al saldo,
+ENTONCES el pago se guarda y la cuota queda CANCELADA.
+CUANDO exista un exceso,
+ENTONCES no debe distribuirse entre otras cuotas ni aplicarse al saldo total del comprobante.
+
+RN-089: Fecha de pago y orden cronológico
+CUANDO la fecha de pago sea posterior a hoy, anterior a la fecha de emisión o anterior a la mayor fecha de pago vigente de la misma cuota,
+ENTONCES el sistema no debe guardar el pago (se admiten pagos con la misma fecha; los pagos de otras cuotas no intervienen).
+CUANDO el usuario necesite incorporar un pago omitido anterior,
+ENTONCES primero debe anular los pagos vigentes posteriores de esa cuota y luego registrar todos de nuevo en orden cronológico con sus fechas reales.
+
+RN-088: Fecha de pago y fecha de registro
+CUANDO el usuario registre un pago,
+ENTONCES el sistema debe guardar la fecha de pago ingresada y, aparte, la fecha y hora de registro automática; ambas se muestran en la lista de pagos de la cuota.
+CUANDO se registre o anule un pago,
+ENTONCES el sistema debe recalcular el saldo y la fecha de cancelación real, sin modificar el vencimiento acordado ni la fecha efectiva de vencimiento.
+
+RN-063: Pago confirmado al registrarse
+CUANDO el usuario registre un pago,
+ENTONCES el sistema debe confirmarlo en ese momento (pago confirmado = pago registrado); no existe un estado intermedio de aprobación.
+
+RN-156: Registro de pago sin duplicados (idempotencia)
+CUANDO el usuario envíe el registro de un pago,
+ENTONCES el botón «Registrar pago» debe quedar deshabilitado con «Guardando…» mientras la solicitud está en curso.
+CUANDO se reintente la misma operación (doble clic, respuesta perdida o reintento),
+ENTONCES el sistema debe crear como máximo un pago, reutilizando la misma Clave-Idempotencia generada al abrir el diálogo; un diálogo nuevo genera una clave nueva.
+
+RN-027 / RN-028: Pagos inmodificables e inborrables
+CUANDO un pago esté registrado,
+ENTONCES el sistema no debe permitir editarlo ni eliminarlo; la única corrección posible es anularlo.
+
+RN-029: Anulación de un pago
+CUANDO un usuario autorizado anule un pago vigente,
+ENTONCES el sistema debe crear un registro de anulación que referencie al pago, conservar el pago original sin cambios y tratarlo como ANULADO para el cálculo del saldo.
+CUANDO el pago quede ANULADO,
+ENTONCES la transición es irreversible.
+
+RN-030 / RN-031 / RN-032: Datos de la anulación
+CUANDO el usuario anule un pago o un comprobante,
+ENTONCES debe escribir un motivo obligatorio de 1 a 500 caracteres tras quitar espacios exteriores (se guarda en mayúsculas, RN-162),
+Y el sistema debe guardar el usuario que anula y la fecha y hora de la anulación; estos datos se muestran junto al badge ANULADO.
+
+RN-123 / RN-124: Anulación única, total e irreversible
+CUANDO un pago ya esté ANULADO,
+ENTONCES el sistema no debe permitir anularlo de nuevo (la fila no muestra la acción «Anular»); ante dos solicitudes simultáneas solo se crea una anulación.
+CUANDO se anule un pago,
+ENTONCES la anulación afecta el importe completo; no se permite anulación parcial ni revertir, modificar o eliminar la anulación. Registrar un pago de reemplazo es una operación aparte y opcional.
+
+RN-058 / RN-059 / RN-060: Permisos de anulación por rol
+CUANDO un usuario OPERADOR vea el detalle del comprobante,
+ENTONCES no debe ver las acciones «Anular pago» ni «Anular comprobante» y el servidor rechaza cualquier intento de anulación.
+CUANDO el usuario sea SUPERVISOR o ADMINISTRADOR,
+ENTONCES puede anular pagos vigentes y comprobantes elegibles de su empresa.
+CUANDO el usuario sea de cualquier rol,
+ENTONCES puede consultar el detalle, registrar pagos, editar comprobantes editables y reprogramar (S1); ocultar opciones en la UI es solo una ayuda, el servidor vuelve a comprobar el permiso.
+
+RN-061: Anulación de un comprobante
+CUANDO un SUPERVISOR o ADMINISTRADOR anule un comprobante no anulado,
+ENTONCES el sistema debe crear un registro de anulación con motivo, usuario y fecha, sin modificar ni borrar el comprobante.
+CUANDO el comprobante ya esté anulado,
+ENTONCES el sistema debe rechazar una nueva anulación.
+
+RN-062: Comprobante anulable solo sin pagos vigentes
+CUANDO alguna cuota del comprobante tenga pagos vigentes (parciales o totales),
+ENTONCES el sistema no debe permitir anularlo y debe mostrar «Tiene pagos vigentes. Anúlalos primero.» (COMPROBANTE_CON_PAGOS_VIGENTES).
+CUANDO no tenga pagos o todos estén ANULADOS,
+ENTONCES puede anularse aunque tenga cuotas PENDIENTES o VENCIDAS, y todas sus cuotas quedan ANULADAS.
+
+RN-090 / RN-091: Comprobante anulado de solo lectura
+CUANDO un comprobante esté anulado,
+ENTONCES todas sus cuotas deben mostrarse ANULADAS (condición heredada, no un estado de pago), sin borrarlas ni poner su saldo en cero, y dejan de sumar en cartera, indicadores y avisos.
+CUANDO el usuario vea un comprobante anulado,
+ENTONCES no debe poder registrar pagos, reprogramar, editar, anular de nuevo ni revertir la anulación; solo se ofrece «Registrar comprobante nuevo con estos datos» (mismo número permitido, RN-003).
+
+RN-081: Comprobante editable
+CUANDO el comprobante no esté anulado y no tenga pagos ni reprogramaciones registrados,
+ENTONCES cualquier rol puede editarlo (botón «Editar» habilitado, lleva a P-005).
+CUANDO tenga pagos o reprogramaciones registrados,
+ENTONCES el botón «Editar» debe mostrarse deshabilitado con el texto «No editable: tiene pagos registrados.».
+
+RN-071 / RN-072: Fecha efectiva y marca de reprogramada (Should, S1)
+CUANDO la funcionalidad S1 no esté activa,
+ENTONCES la fecha efectiva es el vencimiento original y no se muestran la columna «Fecha efect.», la marca ni la acción «Reprogramar».
+CUANDO S1 esté activa y la cuota tenga una promesa vigente,
+ENTONCES la fecha efectiva es la fecha de esa promesa y se usa para clasificar la cuota y contar su mora.
+CUANDO la cuota tenga al menos una reprogramación,
+ENTONCES debe mostrar la marca «Reprogramada», que no cambia su estado y permanece aunque la cuota se cancele.
 </contexto>
 
 <tarea>

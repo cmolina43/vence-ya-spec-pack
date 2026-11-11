@@ -4,16 +4,297 @@ Eres un desarrollador frontend senior. Tu trabajo es convertir un wireframe text
 </agente>
 
 <contexto>
-Estoy prototipando la pantalla [NOMBRE_PANTALLA] de [NOMBRE_PROYECTO].
+Estoy prototipando la pantalla P-007 Cuotas por avisar de VenceYa.
 
 --- SCREEN SPEC ---
-[Pegar la screen spec de la pantalla desde 09-ui-spec.md]
+PANTALLA: P-007 Cuotas por avisar
+ACTOR: Todos los roles.
+HUs: HU-010 (Must); HU-011 muestra la promesa activa de cada cuota (Should, RN-036).
+PROPOSITO: Listar todas las cuotas pendientes y vencidas con saldo (por cobrar y por pagar), seleccionarlas y enviar el aviso por correo al contacto.
+
+WIREFRAME TEXTUAL:
+```text
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│ <h1>Cuotas por avisar</h1>                 Datos al 09/11/2026, 08:15  [⟳ Actualizar] │
+│ Texto: «Incluye todas las cuotas pendientes y vencidas con saldo. El envío es manual  │
+│ y solo por correo.»                                            [Ver bandeja ▸]       │
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│ Filtros: Sentido [Todos ▾]  Estado [Todos ▾]  Aviso [Todos | No enviado | Enviado ▾]  │
+│          Moneda [Todas ▾]   Contacto [buscar…      ]                                 │
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│ ┌───┬────────┬───────────────────┬────────────┬──────┬────────────┬─────────────┬───────────┬──────────────────────┐
+│ │[☐]│Sentido │ Contacto          │Comprobante │Cuota │ Vencimiento│ Saldo       │ Estado    │ Aviso                │
+│ ├───┼────────┼───────────────────┼────────────┼──────┼────────────┼─────────────┼───────────┼──────────────────────┤
+│ │[☑]│Cobrar  │ DISTRIBUIDORA LIMA│ F001-00045 │ 1/3  │ 2026-10-28 │ S/ 600.00   │[VENCIDA]  │ No Enviado           │
+│ │[☑]│Cobrar  │ DISTRIBUIDORA LIMA│ F001-00045 │ 2/3  │ 2026-11-04 │ S/ 333.33   │[VENCIDA]  │ Enviado · 11-05 09:10│
+│ │   │        │                   │            │      │            │             │           │ por ANA              │
+│ │[☐]│Pagar   │ TEXTILES SUR      │ E001-00012 │ 2/2  │ 2026-11-12 │ US$ 300.00  │[PENDIENTE]│ No Enviado           │
+│ │   │        │ (desactivado)     │            │      │            │             │ Por vencer│                      │
+│ │[–]│Cobrar  │ FERRETERÍA NORTE  │ F001-00061 │ 1/1  │ 2026-12-20 │ S/ 1,200.00 │[PENDIENTE]│ ⟳ Enviando…          │ ← casilla deshabilitada
+│ └───┴────────┴───────────────────┴────────────┴──────┴────────────┴─────────────┴───────────┴──────────────────────┘
+│  Casilla del encabezado: «Seleccionar todas las cuotas visibles» (tri-estado).       │
+│  Con S1: debajo del vencimiento, «Promesa: 2026-11-20» con badge ámbar.              │
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│ BARRA DE ACCIÓN (sticky inferior cuando hay selección; role=region aria-label=       │
+│ "Envío de avisos")                                                                   │
+│  2 cuotas seleccionadas de 1 contacto       [Limpiar selección]                      │
+│  Comentario (opcional)                                                               │
+│  [ Favor confirmar fecha de pago                                   ]  29/500         │
+│                                                     [ Enviar aviso (2) ] (primario)  │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**P-007.D1 Diálogo «Confirmar envío de avisos»** (resultado de #45; `Dialog` 720 px / pantalla completa en móvil):
+
+```text
+┌ <h2>Confirmar envío</h2> ─────────────────────────────────────────── [✕] ┐
+│ Se enviarán 2 correos.                                                   │
+│ ┌ Correo 1 de 2 · Por cobrar vencida ───────────────────────────────────┐│
+│ │ Para:        ventas@distlima.example                                  ││
+│ │ Copia:       admin@andina.example, jefe.cobranzas@andina.example      ││
+│ │ Responder a: admin@andina.example                                     ││
+│ │ Cuotas: F001-00045 cuota 1 (S/ 600.00, venció 2026-10-28),            ││
+│ │         F001-00045 cuota 2 (S/ 333.33, venció 2026-11-04)             ││
+│ │ ⚠ La cuota 2 ya tiene un aviso enviado. Último aviso: 2026-11-05, ANA.││
+│ │   [☐ Reenviar aviso de la cuota 2]  (obligatorio para incluirla)      ││
+│ └───────────────────────────────────────────────────────────────────────┘│
+│ ┌ Correo 2 de 2 · Por cobrar por vencer ──────────────────────────────── ┐│
+│ │ …                                                                     ││
+│ └───────────────────────────────────────────────────────────────────────┘│
+│ Cuotas excluidas (si hay): «E001-00012 cuota 2 — CUOTA_CANCELADA:        │
+│   se canceló después de seleccionarla.»                                   │
+│ Comentario: FAVOR CONFIRMAR FECHA DE PAGO                                 │
+│ Nota: «Los destinatarios se toman de la configuración vigente y no se    │
+│ pueden modificar. "Enviado" significa que el proveedor de correo aceptó  │
+│ el envío, no que el destinatario lo leyó.»                               │
+│                                   [Cancelar]  [Confirmar y enviar (2)]   │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**Comportamiento del envío:**
+- «Confirmar y enviar» se deshabilita con «Enviando…» al primer clic (hasta ~10 s por correo, plazo del servidor). Las cuotas involucradas pasan a «Enviando…» en la lista.
+- Si una cuota con aviso vigente no tiene marcada su casilla «Reenviar aviso», no se incluye; si con esa exclusión no queda nada que enviar, el botón queda deshabilitado con el texto «Marca "Reenviar aviso" o quita la cuota».
+- **Resultado por correo** (el diálogo cambia a vista de resultado, foco en su título):
+
+```text
+┌ <h2>Resultado del envío</h2> ──────────────────────────────────────┐
+│ ✓ Correo 1 · DISTRIBUIDORA LIMA · Por cobrar vencida — Aviso enviado │
+│ ✕ Correo 2 · DISTRIBUIDORA LIMA · Por cobrar por vencer — No Enviado │
+│   Motivo: el proveedor de correo no respondió a tiempo.              │
+│   [Volver a intentar]  (genera un intento nuevo con datos vigentes)  │
+│                                     [Ver bandeja]  [Cerrar]          │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+DATOS: Leyenda de corte; por cuota: sentido, contacto (y si está desactivado), comprobante, cuota n/N, fecha efectiva de vencimiento, saldo con moneda, estado (VENCIDA/PENDIENTE), clasificación del aviso («Vencida»/«Por vencer»), estado del aviso («Enviado · 2026-11-05 09:10» / «No Enviado» / «Enviando…»), promesa activa (S1).
+ACCIONES: Filtrar (sentido, estado, aviso enviado/no enviado, contacto, moneda) · Seleccionar cuotas (individual, todas las visibles, todas de un contacto) · Escribir comentario · Enviar aviso (P-007.D1) · Reenviar aviso · Volver a intentar · Ver bandeja (P-008) · Abrir comprobante (P-006) · Reprogramar (S1).
 
 --- DESIGN TOKENS ---
-[Pegar los design tokens desde 09-ui-spec.md]
+PALETA DE COLORES:
+Base: shadcn/ui (Radix + Tailwind). Los tokens se declaran como variables CSS en `:root` y se mapean en `tailwind.config` (`colors.primary = 'var(--color-primario)'`, etc.). Todos los pares texto/fondo indicados fueron verificados con la fórmula de contraste WCAG 2.x.
+
+### Paleta de colores — tema claro (por defecto)
+
+| Token | Hex | Uso | Contraste verificado |
+|---|---|---|---|
+| `--color-primario` | `#0B5FA5` | Botón primario, enlaces, ítem activo, foco, serie «Cobros» | 6.57:1 sobre `#FFFFFF`; 6.28:1 sobre fondo |
+| `--color-primario-texto` | `#FFFFFF` | Texto sobre primario | 6.57:1 |
+| `--color-primario-hover` | `#094C84` | Hover/activo del primario | > 6.57:1 |
+| `--color-primario-suave` | `#E0EEFA` | Fondo de ítem activo, filas seleccionadas | primario sobre él: 5.57:1 |
+| `--color-secundario` | `#0F766E` | Serie «Pagos» del gráfico, acciones secundarias destacadas | 5.47:1 sobre blanco |
+| `--color-acento` | `#B45309` | Advertencias, marca «Reprogramada», «Por vencer» destacado | 5.02:1 sobre blanco |
+| `--color-peligro` | `#B91C1C` | Errores, botones destructivos, importes vencidos | 6.47:1 sobre blanco |
+| `--color-exito` | `#15803D` | Confirmaciones, CANCELADA, Enviado | 5.02:1 sobre blanco |
+| `--color-fondo` | `#F8FAFC` | Fondo de la aplicación | — |
+| `--color-superficie` | `#FFFFFF` | Cards, diálogos, tablas | — |
+| `--color-texto` | `#0F172A` | Texto principal | 17.06:1 sobre fondo |
+| `--color-texto-secundario` | `#475569` | Ayudas, metadatos, leyenda de corte | 7.58:1 sobre blanco; 7.24:1 sobre fondo |
+| `--color-borde-control` | `#64748B` | Borde de inputs, selects, casillas (WCAG 1.4.11 ≥ 3:1) | 4.76:1 sobre blanco |
+| `--color-borde-sutil` | `#E2E8F0` | Divisores decorativos, bordes de Card | (decorativo) |
+| `--color-foco` | `#0B5FA5` | Anillo de foco: 2 px sólido + 2 px de separación | 6.57:1 |
+
+**Badges de estado (texto oscuro sobre fondo tenue):**
+
+| Token | Texto | Fondo | Contraste |
+|---|---|---|---|
+| `estado-vencida` | `#991B1B` | `#FEE2E2` | 6.80:1 |
+| `estado-cancelada` / `aviso-enviado` | `#166534` | `#DCFCE7` | 6.49:1 |
+| `marca-reprogramada` / advertencia | `#92400E` | `#FEF3C7` | 6.37:1 |
+| `estado-pendiente` / `aviso-en-proceso` | `#1E40AF` | `#DBEAFE` | 7.15:1 |
+| `estado-anulado` / `aviso-no-enviado` | `#334155` | `#E2E8F0` | 8.40:1 |
+
+### Paleta — tema oscuro (opcional, respeta `prefers-color-scheme`)
+
+| Token | Hex | Contraste verificado |
+|---|---|---|
+| `--color-fondo` | `#0B1220` | — |
+| `--color-superficie` | `#111A2E` | — |
+| `--color-texto` | `#F8FAFC` | 17.89:1 sobre fondo |
+| `--color-texto-secundario` | `#94A3B8` | 7.30:1 sobre fondo |
+| `--color-primario` | `#60A5FA` (texto del botón: `#0B1220`) | 7.36:1 |
+| `--color-secundario` | `#2DD4BF` | 10.06:1 |
+| `--color-acento` | `#FBBF24` | 11.22:1 |
+| `--color-peligro` | `#F87171` | 6.77:1 |
+| `--color-exito` | `#4ADE80` | 10.74:1 |
+| `--color-borde-control` | `#7C8BA1` | 5.01:1 sobre superficie |
+
+TIPOGRAFIA:
+
+| Token | Valor |
+|---|---|
+| Familia | `"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` (Inter cubre á, é, í, ó, ú, ñ, ü) |
+| Números | `font-variant-numeric: tabular-nums` en importes, fechas y tablas |
+| Tamaño base | 16 px (1 rem); nunca menor que 14 px en texto de contenido |
+| Interlineado | 1.5 en texto; 1.25 en títulos |
+| Escala | `--texto-xs` 12 px (solo metadatos no esenciales) · `--texto-sm` 14 px (tablas, ayudas) · `--texto-base` 16 px · `--texto-lg` 18 px · `--texto-xl` 20 px (h3) · `--texto-2xl` 24 px (h2) · `--texto-3xl` 30 px (h1 y cifras de indicadores) |
+| Pesos | 400 normal · 500 etiquetas y encabezados de tabla · 600 títulos y botones · 700 cifras de indicadores |
+| Ajuste de texto | Soporta zoom al 200 % y `text-spacing` (WCAG 1.4.4 y 1.4.12) sin cortar contenido |
+
+COMPONENTES:
+
+| Componente | Especificación |
+|---|---|
+| Botón (`Button`) | Alto 40 px escritorio / 44 px móvil; padding horizontal 16 px; texto 14–16 px peso 600; variantes `primario`, `secundario` (borde `--color-borde-control`), `fantasma`, `destructivo`; estado «cargando» con spinner + texto. Botón solo icono: 40×40 px con `aria-label`. |
+| Input / Select / Combobox | Alto 40 px (44 px móvil); borde 1 px `--color-borde-control`; etiqueta visible encima (14 px, 500); ayuda debajo (14 px secundario); error debajo (14 px peligro, con icono y texto). |
+| Casilla / radio | Caja de 20 px con área clicable ≥ 24×24 px (etiqueta incluida en el área). |
+| Badge | Alto 24 px, padding 8 px, texto 12–14 px peso 500, radio 4 px, siempre con texto. |
+| Card de indicador | Padding 20 px; título 14 px; cifra 30 px peso 700; pie 14 px. Alto mínimo 120 px. |
+| Tabla | Fila 48 px (compacta 40 px); encabezado 14 px peso 500, fondo `--color-fondo`; importes alineados a la derecha. |
+| Diálogo | Ancho 480 px (confirmaciones), 560 px (formularios), 720 px (confirmar envío); pantalla completa en < 640 px; foco atrapado; `Esc` cierra salvo durante «Enviando…». |
+| Toast | Ancho 360 px, esquina inferior derecha (superior en móvil), 5 s; los errores **no** usan toast sino Alert persistente. |
+| Header / Sidebar | 64 px / 248 px en escritorio; 56 px de header en móvil. |
+| Anillo de foco | `outline: 2px solid var(--color-foco); outline-offset: 2px;` en todo elemento interactivo; nunca `outline: none` sin reemplazo. |
 
 --- REGLAS DE NEGOCIO RELEVANTES ---
-[Pegar las reglas que aplican a esta pantalla desde 03-reglas-denegocio.md]
+RN-112: Lista completa de cuotas por avisar
+CUANDO el usuario abre la pantalla Cuotas por avisar,
+ENTONCES el sistema muestra todas las cuotas PENDIENTES o VENCIDAS con saldo, sin limitarlas a la ventana de proyección del gráfico.
+CUANDO se muestra cada cuota,
+ENTONCES se ve su sentido (por cobrar/por pagar), contacto, comprobante, número de cuota, fecha efectiva de vencimiento, saldo con moneda y el estado del aviso: «Enviado · fecha y hora del último envío aceptado» o «No Enviado».
+CUANDO una cuota está CANCELADA o pertenece a un comprobante anulado,
+ENTONCES no aparece en la lista.
+
+RN-075: Clasificación «Por vencer»
+CUANDO una cuota está PENDIENTE y tiene saldo,
+ENTONCES se clasifica como «Por vencer», sin límite máximo de días futuros (p. ej., una cuota que vence el 2026-12-20 aparece aunque el gráfico muestre solo 7 días).
+CUANDO se muestra esa clasificación,
+ENTONCES se presenta como clasificación de la lista, no como un estado de la cuota.
+
+RN-120: Orden de la lista
+CUANDO se muestra la lista de cuotas por avisar,
+ENTONCES aparecen primero las cuotas VENCIDAS por fecha efectiva ascendente (la más antigua primero) y después las PENDIENTES por fecha efectiva ascendente (la que vence antes primero).
+
+RN-114: Tipo de aviso
+CUANDO el sistema prepara un aviso,
+ENTONCES lo clasifica en uno de cuatro tipos: por cobrar por vencer, por cobrar vencida, por pagar por vencer o por pagar vencida.
+CUANDO el aviso es por pagar,
+ENTONCES informa al proveedor sobre un pago que la empresa le debe, sin pedirle ningún pago.
+CUANDO un correo incluye cuotas en S/ y en US$,
+ENTONCES no muestra un total que sume ambas monedas.
+
+RN-214: Un correo por contacto y tipo
+CUANDO la selección confirmada contiene varias cuotas aptas del mismo contacto y del mismo tipo de aviso,
+ENTONCES el sistema las agrupa en un solo correo.
+CUANDO las cuotas son de distinto contacto o de distinto tipo (vencida/por vencer, cobrar/pagar),
+ENTONCES van en correos separados.
+
+RN-212: Recalcular al confirmar
+CUANDO el usuario confirma el envío,
+ENTONCES el sistema obtiene de nuevo la fecha de cálculo y recalcula saldo, estado, tipo de aviso, días de atraso y aptitud de cada cuota antes de generar los correos.
+
+RN-213: Destinatarios vigentes al confirmar
+CUANDO el usuario confirma el envío,
+ENTONCES el sistema vuelve a obtener los destinatarios vigentes.
+CUANDO los destinatarios vigentes no coinciden con los mostrados en el diálogo,
+ENTONCES no envía el correo y muestra los destinatarios vigentes para que el usuario confirme otra vez.
+
+RN-155: Cuotas aptas y excluidas
+CUANDO al confirmar una cuota seleccionada ya no está PENDIENTE o VENCIDA con saldo, o su comprobante fue anulado,
+ENTONCES el sistema no la incluye, envía las cuotas que siguen aptas y muestra la cuota excluida con su motivo (cuota cancelada o comprobante anulado).
+CUANDO ninguna cuota seleccionada sigue siendo apta,
+ENTONCES no envía ningún correo ni registra un intento.
+
+RN-045: Confirmación de reenvío
+CUANDO una cuota ya tiene un aviso «Enviado» del mismo tipo para la misma fecha efectiva de vencimiento,
+ENTONCES el sistema no la envía otra vez hasta que el usuario vea la fecha y el usuario del último aviso (p. ej., «Último aviso: 2026-11-05, ANA») y marque «Reenviar aviso».
+CUANDO la cuota fue reprogramada a otra fecha efectiva,
+ENTONCES puede avisarse sin advertencia.
+CUANDO el intento anterior quedó «No Enviado»,
+ENTONCES no exige la confirmación de reenvío.
+
+RN-138: Reenvío y reintento con datos vigentes
+CUANDO el usuario confirma «Reenviar aviso» o «Volver a intentar»,
+ENTONCES el sistema genera un aviso nuevo con los datos, el tipo y los destinatarios vigentes, sin reutilizar el contenido del intento anterior.
+CUANDO el nuevo intento es aceptado,
+ENTONCES la lista muestra la fecha y hora de ese último envío.
+CUANDO el nuevo intento falla,
+ENTONCES la lista conserva la fecha del último envío aceptado, si existe.
+
+RN-066: Rechazo o error del proveedor
+CUANDO el proveedor de correo rechaza el envío o hay un error de comunicación,
+ENTONCES el intento queda «No Enviado», se libera el bloqueo de sus cuotas y se muestra un error persistente (no un toast) con la acción «Volver a intentar».
+CUANDO la cuota ya tenía un envío anterior exitoso,
+ENTONCES conserva su marca «Enviado» y la fecha anterior.
+CUANDO falla un envío,
+ENTONCES el sistema no hace reintentos automáticos y el mensaje no muestra direcciones de correo ni importes.
+
+RN-067: Tiempo de espera del servidor
+CUANDO el intento agota el tiempo de espera del servidor (10 s),
+ENTONCES se trata como «No Enviado» con motivo TIEMPO_ESPERA, se liberan las cuotas y se muestra «El aviso no se envió. Puedes volver a intentar».
+CUANDO el usuario quiere volver a intentar,
+ENTONCES no se exige verificación posterior ni espera adicional.
+
+RN-158: Intento EN_PROCESO
+CUANDO el usuario confirma el envío,
+ENTONCES el sistema guarda el intento como EN_PROCESO antes de llamar al proveedor y las cuotas involucradas muestran «Enviando…».
+CUANDO llega otra solicitud para las mismas cuotas mientras el plazo del intento sigue vigente,
+ENTONCES el sistema la rechaza con INTENTO_EN_PROCESO, sin enviar otro correo.
+CUANDO vence el plazo sin éxito registrado,
+ENTONCES la cuota se muestra como «No Enviado» y puede avisarse de nuevo.
+
+RN-157: Bloqueo de doble envío
+CUANDO el usuario pulsa «Enviar aviso», «Reenviar aviso» o «Confirmar y enviar»,
+ENTONCES el botón se deshabilita con el texto «Enviando…» desde el primer clic hasta recibir la respuesta o agotar el tiempo de espera.
+CUANDO otro usuario u otra pestaña intenta enviar las mismas cuotas al mismo tiempo,
+ENTONCES el servidor impide el envío duplicado y sale un solo correo.
+
+RN-136: Destinatarios visibles y no editables
+CUANDO el usuario va a confirmar un envío, reenvío o reintento,
+ENTONCES el diálogo muestra por cada correo el destinatario principal (correo del contacto) y todos los destinatarios en copia: el correo administrativo de la empresa y la lista de copias del sentido del aviso.
+CUANDO el usuario revisa los destinatarios,
+ENTONCES no puede quitar, agregar ni reemplazar ninguno.
+CUANDO es un reenvío o reintento y un destinatario cambió desde el último intento,
+ENTONCES se marca el cambio e indica el valor anterior (p. ej., «Para: tesoreria@cliente.example (antes: pagos@cliente.example)»).
+
+RN-178: Copia mínima al correo administrativo
+CUANDO la lista de copias del sentido del aviso está vacía,
+ENTONCES el correo se dirige al contacto con copia únicamente al correo administrativo de la empresa.
+
+RN-164: Dirección de respuesta
+CUANDO el sistema genera un aviso,
+ENTONCES usa como «Responder a» el correo administrativo vigente de la empresa.
+
+RN-162: Comentario del aviso
+CUANDO el usuario escribe un comentario,
+ENTONCES es opcional, admite de 0 a 500 caracteres (con contador visible), se quitan los espacios exteriores y se convierte a mayúsculas.
+CUANDO el comentario supera 500 caracteres,
+ENTONCES el sistema no lo trunca en silencio e informa el motivo.
+
+RN-215: Envío siempre manual
+CUANDO una cuota vence o está por vencer,
+ENTONCES el sistema no envía ningún aviso automático; solo envía cuando un usuario selecciona las cuotas y confirma.
+
+RN-130: Contactos desactivados
+CUANDO el contacto de una cuota con saldo está desactivado,
+ENTONCES la cuota sigue apareciendo en la lista con la marca «(desactivado)» y puede avisarse si es apta.
+
+RN-036: Promesa activa (Should, S1)
+CUANDO una cuota tiene una promesa de pago activa,
+ENTONCES se muestra debajo del vencimiento como «Promesa: 2026-11-20» con badge ámbar, visible para todos los roles.
+
+RN-152: Contrato terminado
+CUANDO se alcanza la fecha y hora efectiva de terminación del contrato de la empresa,
+ENTONCES el sistema bloquea el acceso, invalida la sesión y rechaza sin efectos los avisos pendientes de envío.
 </contexto>
 
 <tarea>
