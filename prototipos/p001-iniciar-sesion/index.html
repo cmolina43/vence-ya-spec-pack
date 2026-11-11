@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P-001 Iniciar sesión · VenceYa</title>
+  <style>
+/* P-001 Iniciar sesión — VenceYa (prototipo, tokens del design system) */
+:root {
+  --color-primario: #0B5FA5;
+  --color-primario-texto: #FFFFFF;
+  --color-primario-hover: #094C84;
+  --color-primario-suave: #E0EEFA;
+  --color-peligro: #B91C1C;
+  --color-exito: #15803D;
+  --color-fondo: #F8FAFC;
+  --color-superficie: #FFFFFF;
+  --color-texto: #0F172A;
+  --color-texto-secundario: #475569;
+  --color-borde-control: #64748B;
+  --color-borde-sutil: #E2E8F0;
+  --color-foco: #0B5FA5;
+  --info-texto: #1E40AF;
+  --info-fondo: #DBEAFE;
+  --error-texto: #991B1B;
+  --error-fondo: #FEE2E2;
+  --exito-texto: #166534;
+  --exito-fondo: #DCFCE7;
+  --btn-alto: 44px;
+}
+@media (min-width: 640px) { :root { --btn-alto: 40px; } }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) {
+    --color-fondo: #0B1220;
+    --color-superficie: #111A2E;
+    --color-texto: #F8FAFC;
+    --color-texto-secundario: #94A3B8;
+    --color-primario: #60A5FA;
+    --color-primario-texto: #0B1220;
+    --color-primario-hover: #93C5FD;
+    --color-primario-suave: #172554;
+    --color-peligro: #F87171;
+    --color-exito: #4ADE80;
+    --color-borde-control: #7C8BA1;
+    --color-borde-sutil: #1E293B;
+    --color-foco: #60A5FA;
+    --info-texto: #BFDBFE; --info-fondo: #172554;
+    --error-texto: #FECACA; --error-fondo: #450A0A;
+    --exito-texto: #BBF7D0; --exito-fondo: #052E16;
+  }
+}
+:root[data-tema="oscuro"] {
+  --color-fondo: #0B1220;
+  --color-superficie: #111A2E;
+  --color-texto: #F8FAFC;
+  --color-texto-secundario: #94A3B8;
+  --color-primario: #60A5FA;
+  --color-primario-texto: #0B1220;
+  --color-primario-hover: #93C5FD;
+  --color-primario-suave: #172554;
+  --color-peligro: #F87171;
+  --color-exito: #4ADE80;
+  --color-borde-control: #7C8BA1;
+  --color-borde-sutil: #1E293B;
+  --color-foco: #60A5FA;
+  --info-texto: #BFDBFE; --info-fondo: #172554;
+  --error-texto: #FECACA; --error-fondo: #450A0A;
+  --exito-texto: #BBF7D0; --exito-fondo: #052E16;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { font-size: 16px; }
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+  color: var(--color-texto);
+  background: var(--color-fondo);
+  min-height: 100vh;
+}
+h1, h2 { line-height: 1.25; margin: 0; }
+:focus-visible { outline: 2px solid var(--color-foco); outline-offset: 2px; }
+
+/* Barra del prototipo (no forma parte de la pantalla) */
+.proto-bar {
+  background: var(--color-superficie);
+  border-bottom: 1px solid var(--color-borde-sutil);
+  padding: 12px 16px;
+  font-size: 14px;
+}
+.proto-bar summary { cursor: pointer; font-weight: 600; }
+.proto-bar .grid {
+  display: grid; gap: 16px; margin-top: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.proto-bar fieldset { border: 1px solid var(--color-borde-sutil); border-radius: 6px; padding: 8px 12px; margin: 0; }
+.proto-bar legend { font-weight: 500; padding: 0 4px; }
+.proto-bar label { display: flex; align-items: center; gap: 8px; min-height: 28px; cursor: pointer; }
+.proto-bar p { margin: 8px 0 0; color: var(--color-texto-secundario); }
+.proto-bar code { font-size: 13px; background: var(--color-primario-suave); padding: 1px 4px; border-radius: 4px; }
+
+main {
+  display: flex; justify-content: center; align-items: flex-start;
+  padding: 32px 16px 48px;
+}
+.marca { text-align: center; margin-bottom: 20px; font-weight: 700; font-size: 20px; color: var(--color-primario); }
+.contenedor { width: 100%; max-width: 440px; }
+
+.card {
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde-sutil);
+  border-radius: 12px;
+  padding: 24px 20px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .08);
+}
+@media (min-width: 640px) { .card { padding: 32px; } }
+.card h1 { font-size: 30px; font-weight: 600; margin-bottom: 16px; }
+
+/* Alerts */
+.alert {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 12px 14px; margin-bottom: 16px; border-radius: 8px;
+  font-size: 14px; border: 1px solid transparent;
+}
+.alert[hidden] { display: none; }
+.alert svg { flex: none; margin-top: 2px; }
+.alert-info { background: var(--info-fondo); color: var(--info-texto); border-color: var(--info-texto); }
+.alert-exito { background: var(--exito-fondo); color: var(--exito-texto); border-color: var(--exito-texto); }
+.alert-error { background: var(--error-fondo); color: var(--error-texto); border-color: var(--error-texto); }
+
+/* Campos */
+.campo { margin-bottom: 16px; }
+.campo label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+.req { color: var(--color-peligro); }
+.control {
+  display: flex; width: 100%; gap: 8px;
+}
+input {
+  width: 100%; height: var(--btn-alto);
+  padding: 0 12px; font: inherit; font-size: 16px;
+  color: var(--color-texto); background: var(--color-superficie);
+  border: 1px solid var(--color-borde-control); border-radius: 6px;
+}
+input::placeholder { color: var(--color-texto-secundario); opacity: .8; }
+input[aria-invalid="true"] { border-color: var(--color-peligro); }
+input:disabled { opacity: .6; cursor: not-allowed; }
+.error-campo {
+  display: flex; gap: 6px; align-items: center;
+  margin-top: 4px; font-size: 14px; color: var(--color-peligro);
+}
+.error-campo[hidden] { display: none; }
+
+/* Botones */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: var(--btn-alto); padding: 0 16px;
+  font: inherit; font-size: 16px; font-weight: 600;
+  border-radius: 6px; border: 1px solid transparent; cursor: pointer;
+}
+.btn-primario { background: var(--color-primario); color: var(--color-primario-texto); width: 100%; }
+.btn-primario:hover:not(:disabled) { background: var(--color-primario-hover); }
+.btn-primario:disabled { cursor: progress; opacity: .85; }
+.btn-secundario {
+  background: transparent; color: var(--color-texto);
+  border-color: var(--color-borde-control); flex: none; font-size: 14px;
+}
+.btn-secundario:hover { background: var(--color-primario-suave); }
+.btn-fantasma { background: transparent; color: var(--color-primario); border: 0; }
+.btn-fantasma:hover { text-decoration: underline; }
+
+.spinner {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent;
+  animation: giro .7s linear infinite;
+}
+@keyframes giro { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }
+
+.enlaces { margin-top: 20px; text-align: center; font-size: 14px; }
+a { color: var(--color-primario); font-weight: 500; }
+a:hover { text-decoration: underline; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+/* Pantallas simuladas destino */
+.destino { text-align: center; }
+.destino h1 { font-size: 24px; }
+.destino p { color: var(--color-texto-secundario); }
+.destino .btn { width: auto; margin-top: 8px; }
+.destino .ref { font-size: 14px; color: var(--color-texto-secundario); margin: 4px 0 16px; }
+</style>
+</head>
+<body>
+
+  <!-- Controles del prototipo: no forman parte de la pantalla -->
+  <details class="proto-bar" id="proto-bar">
+    <summary>Controles del prototipo (estados y datos de prueba)</summary>
+    <div class="grid">
+      <fieldset>
+        <legend>Mensaje informativo (parámetro de navegación)</legend>
+        <label><input type="radio" name="aviso" value="" checked> Ninguno (formulario vacío)</label>
+        <label><input type="radio" name="aviso" value="sesion"> Sesión terminada</label>
+        <label><input type="radio" name="aviso" value="activada"> Cuenta activada</label>
+        <label><input type="radio" name="aviso" value="clave"> Contraseña actualizada</label>
+      </fieldset>
+      <fieldset>
+        <legend>Estados</legend>
+        <label><input type="radio" name="estado" value="" checked> Flujo real (usa las credenciales)</label>
+        <label><input type="radio" name="estado" value="error"> Forzar error</label>
+        <label><input type="radio" name="estado" value="cargando"> Forzar carga (sin resolver)</label>
+        <label><input type="radio" name="estado" value="datos"> Rellenar con datos de ejemplo</label>
+      </fieldset>
+      <fieldset>
+        <legend>Credenciales de prueba</legend>
+        <p style="margin-top:0">Correo: <code>ana@andina.example</code><br>
+        Contraseña: <code>Andina2026!</code></p>
+        <p>5 fallos seguidos bloquean la cuenta 15 min (RN-103). El mensaje de error es siempre el mismo.</p>
+        <button type="button" class="btn btn-secundario" id="reiniciar">Reiniciar prototipo</button>
+      </fieldset>
+    </div>
+  </details>
+
+  <main>
+    <div class="contenedor">
+      <div class="marca" aria-hidden="true">VenceYa</div>
+
+      <!-- Vista P-001 -->
+      <section class="card" id="vista-login" aria-labelledby="titulo">
+        <h1 id="titulo">Iniciar sesión</h1>
+
+        <div class="alert alert-info" id="alerta-info" role="status" hidden>
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 1a9 9 0 100 18 9 9 0 000-18zm1 13H9V9h2v5zm0-6H9V6h2v2z"/></svg>
+          <span id="texto-info"></span>
+        </div>
+
+        <div class="alert alert-error" id="alerta-error" role="alert" hidden>
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 1a9 9 0 100 18 9 9 0 000-18zm1 13H9v-2h2v2zm0-4H9V6h2v4z"/></svg>
+          <span>Correo o contraseña incorrectos, o la cuenta está bloqueada temporalmente.</span>
+        </div>
+
+        <form id="form" novalidate>
+          <div class="campo">
+            <label for="correo">Correo electrónico <span class="req" aria-hidden="true">*</span><span class="sr-only">(obligatorio)</span></label>
+            <input id="correo" name="correo" type="email" autocomplete="username"
+                   placeholder="ana@andina.example" required aria-describedby="err-correo">
+            <div class="error-campo" id="err-correo" hidden></div>
+          </div>
+
+          <div class="campo">
+            <label for="clave">Contraseña <span class="req" aria-hidden="true">*</span><span class="sr-only">(obligatorio)</span></label>
+            <div class="control">
+              <input id="clave" name="clave" type="password" autocomplete="current-password"
+                     placeholder="••••••••••••••••" required aria-describedby="err-clave">
+              <button type="button" class="btn btn-secundario" id="mostrar" aria-pressed="false" aria-controls="clave">
+                <span aria-hidden="true">👁</span> <span id="mostrar-texto">Mostrar</span>
+              </button>
+            </div>
+            <div class="error-campo" id="err-clave" hidden></div>
+          </div>
+
+          <button type="submit" class="btn btn-primario" id="enviar">Iniciar sesión</button>
+        </form>
+
+        <p class="enlaces"><a href="#p013" id="olvido">¿Olvidaste tu contraseña?</a></p>
+      </section>
+
+      <!-- Destinos simulados -->
+      <section class="card destino" id="vista-inicio" hidden>
+        <h1 tabindex="-1" id="titulo-inicio">¡Bienvenida, Ana!</h1>
+        <p class="ref">Navegación simulada → Panel principal · Andina Distribuciones S.A.C.</p>
+        <p>Rol: ADMINISTRADOR. Sesión válida 30 min sin actividad o 12 h máximo (RN-149).</p>
+        <button type="button" class="btn btn-secundario" data-volver>Cerrar sesión (volver a P-001)</button>
+      </section>
+
+      <section class="card destino" id="vista-p013" hidden>
+        <h1 tabindex="-1" id="titulo-p013">Recuperar contraseña</h1>
+        <p class="ref">Navegación simulada → P-013</p>
+        <p>Aquí se solicitaría el correo para enviar el enlace de recuperación.</p>
+        <button type="button" class="btn btn-secundario" data-volver>Volver a Iniciar sesión</button>
+      </section>
+    </div>
+  </main>
+
+  <script>
+// P-001 Iniciar sesión — lógica simulada del prototipo (sin backend)
+(function () {
+  'use strict';
+
+  var CUENTAS = { 'ana@andina.example': 'Andina2026!' };
+  var MAX_FALLOS = 5;
+  var AVISOS = {
+    sesion: 'Tu sesión terminó. Vuelve a iniciar sesión.',
+    activada: 'Tu cuenta fue activada. Ya puedes iniciar sesión.',
+    clave: 'Tu contraseña fue actualizada. Inicia sesión con la nueva.'
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var form = $('form'), correo = $('correo'), clave = $('clave'), enviar = $('enviar');
+  var fallos = {};      // RN-103: contador por cuenta
+  var bloqueos = {};    // cuenta -> instante de desbloqueo (ms)
+
+  function vista(nombre) {
+    ['login', 'inicio', 'p013'].forEach(function (v) { $('vista-' + v).hidden = v !== nombre; });
+    var foco = { login: correo, inicio: $('titulo-inicio'), p013: $('titulo-p013') }[nombre];
+    if (foco) foco.focus();
+  }
+
+  function aviso(clave_) {
+    var el = $('alerta-info');
+    el.hidden = !AVISOS[clave_];
+    $('texto-info').textContent = AVISOS[clave_] || '';
+  }
+
+  function errorGeneral(si) { $('alerta-error').hidden = !si; }
+
+  function errorCampo(input, id, msg) {
+    var e = $(id);
+    e.hidden = !msg;
+    e.textContent = '';
+    if (msg) {
+      e.insertAdjacentHTML('afterbegin',
+        '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 1a9 9 0 100 18 9 9 0 000-18zm1 13H9v-2h2v2zm0-4H9V6h2v4z"/></svg>');
+      e.appendChild(document.createTextNode(msg));
+    }
+    input.setAttribute('aria-invalid', msg ? 'true' : 'false');
+  }
+
+  function cargando(si) {
+    enviar.disabled = si;
+    correo.disabled = si;
+    clave.disabled = si;
+    enviar.setAttribute('aria-busy', si ? 'true' : 'false');
+    enviar.innerHTML = si
+      ? '<span class="spinner" aria-hidden="true"></span> Iniciando sesión…'
+      : 'Iniciar sesión';
+  }
+
+  // RN-139/216: solo recorta espacios exteriores y pasa a minúsculas
+  function normalizar(c) { return c.trim().toLowerCase(); }
+
+  // Simula el servidor. RN-103: mismo resultado para cuenta inexistente, clave errónea o bloqueo.
+  function autenticar(c, p) {
+    var ahora = Date.now();
+    if (bloqueos[c] && ahora < bloqueos[c]) return false; // no cuenta como fallo ni prolonga
+    if (bloqueos[c] && ahora >= bloqueos[c]) { delete bloqueos[c]; fallos[c] = 0; }
+    // RN-250: la contraseña se compara sin recortar ni normalizar
+    if (CUENTAS[c] !== undefined && CUENTAS[c] === p) { fallos[c] = 0; return true; }
+    fallos[c] = (fallos[c] || 0) + 1;
+    if (fallos[c] >= MAX_FALLOS) bloqueos[c] = ahora + 15 * 60 * 1000;
+    return false;
+  }
+
+  function estadoForzado() {
+    var r = document.querySelector('input[name="estado"]:checked');
+    return r ? r.value : '';
+  }
+
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    errorGeneral(false);
+    var c = normalizar(correo.value), p = clave.value;
+    var okC = true, okP = true;
+
+    if (!c) { errorCampo(correo, 'err-correo', 'Ingresa tu correo electrónico.'); okC = false; }
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c)) { errorCampo(correo, 'err-correo', 'Ingresa un correo válido, por ejemplo ana@andina.example.'); okC = false; }
+    else errorCampo(correo, 'err-correo', '');
+
+    if (!p) { errorCampo(clave, 'err-clave', 'Ingresa tu contraseña.'); okP = false; }
+    else errorCampo(clave, 'err-clave', '');
+
+    if (!okC) { correo.focus(); return; }
+    if (!okP) { clave.focus(); return; }
+
+    aviso('');
+    cargando(true);
+    var forzado = estadoForzado();
+    if (forzado === 'cargando') return; // se queda cargando para validar el estado
+
+    setTimeout(function () {
+      var ok = forzado === 'error' ? false : autenticar(c, p);
+      cargando(false);
+      if (ok) { form.reset(); vista('inicio'); }
+      else { errorGeneral(true); clave.value = ''; clave.focus(); }
+    }, 1200);
+  });
+
+  // Mostrar / ocultar contraseña
+  $('mostrar').addEventListener('click', function () {
+    var visible = clave.type === 'password';
+    clave.type = visible ? 'text' : 'password';
+    this.setAttribute('aria-pressed', String(visible));
+    $('mostrar-texto').textContent = visible ? 'Ocultar' : 'Mostrar';
+  });
+
+  $('olvido').addEventListener('click', function (ev) { ev.preventDefault(); vista('p013'); });
+  document.querySelectorAll('[data-volver]').forEach(function (b) {
+    b.addEventListener('click', function () { aviso(AVISOS_actual()); vista('login'); });
+  });
+
+  function AVISOS_actual() {
+    var r = document.querySelector('input[name="aviso"]:checked');
+    return r ? r.value : '';
+  }
+
+  // Controles del prototipo
+  document.querySelectorAll('input[name="aviso"]').forEach(function (r) {
+    r.addEventListener('change', function () { aviso(r.value); });
+  });
+  document.querySelectorAll('input[name="estado"]').forEach(function (r) {
+    r.addEventListener('change', function () {
+      cargando(false);
+      errorGeneral(false);
+      if (r.value === 'datos') {
+        correo.value = 'ana@andina.example';
+        clave.value = 'Andina2026!';
+      } else if (r.value === 'error') {
+        correo.value = 'ana@andina.example';
+        clave.value = 'incorrecta';
+      }
+    });
+  });
+  $('reiniciar').addEventListener('click', function () {
+    fallos = {}; bloqueos = {};
+    form.reset(); errorCampo(correo, 'err-correo', ''); errorCampo(clave, 'err-clave', '');
+    errorGeneral(false); cargando(false);
+    document.querySelector('input[name="estado"][value=""]').checked = true;
+    document.querySelector('input[name="aviso"][value=""]').checked = true;
+    aviso(''); vista('login');
+  });
+
+  // Mensaje informativo por parámetro de navegación: ?aviso=sesion|activada|clave
+  var param = new URLSearchParams(location.search).get('aviso');
+  if (param && AVISOS[param]) {
+    aviso(param);
+    var radio = document.querySelector('input[name="aviso"][value="' + param + '"]');
+    if (radio) radio.checked = true;
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P-002 Panel de cartera · VenceYa</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+<!-- Controles del prototipo (no forman parte de la pantalla) -->
+<details class="demo" open>
+  <summary>Controles del prototipo (solo para validar con stakeholders)</summary>
+  <div class="demo-grid">
+    <fieldset>
+      <legend>Estado de la pantalla</legend>
+      <label><input type="radio" name="demo-estado" value="datos" checked> Con datos</label>
+      <label><input type="radio" name="demo-estado" value="vacio"> Vacío</label>
+      <label><input type="radio" name="demo-estado" value="cargando"> Cargando</label>
+      <label><input type="radio" name="demo-estado" value="error"> Error</label>
+    </fieldset>
+    <fieldset>
+      <legend>Banderas</legend>
+      <label><input type="checkbox" id="demo-s1" checked> FUNCIONALIDAD_S1 (promesas)</label>
+      <label><input type="checkbox" id="demo-s5" checked> FUNCIONALIDAD_S5 (tiempo de cobro)</label>
+    </fieldset>
+    <fieldset>
+      <legend>Rol y tema</legend>
+      <label>Rol
+        <select id="demo-rol">
+          <option>Operador</option><option>Supervisor</option><option>Administrador</option>
+        </select>
+      </label>
+      <label>Tema
+        <select id="demo-tema">
+          <option value="auto">Según el sistema</option><option value="claro">Claro</option><option value="oscuro">Oscuro</option>
+        </select>
+      </label>
+    </fieldset>
+  </div>
+</details>
+
+<header class="topbar">
+  <button class="btn btn-ghost btn-icono menu-btn" id="btn-menu" aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="sidebar">☰</button>
+  <div class="logo"><span class="logo-marca" aria-hidden="true">V</span> VenceYa</div>
+  <div class="usuario"><span class="usuario-datos"><strong>Marcela Quispe</strong> · <span id="usuario-rol">Operador</span></span>
+    <span class="empresa">Comercial Ríos S.A.C.</span></div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Navegación principal">
+    <ul>
+      <li><a href="#" aria-current="page" data-nav-actual>Panel de cartera</a></li>
+      <li><a href="#" data-nav="P-006 Comprobantes">Comprobantes</a></li>
+      <li><a href="#" data-nav="P-007 Avisos de cobranza">Avisos</a></li>
+      <li><a href="#" data-nav="P-008 Contactos">Contactos</a></li>
+      <li><a href="#" data-nav="P-020 Configuración">Configuración</a></li>
+    </ul>
+  </nav>
+  <div class="backdrop" id="backdrop" hidden></div>
+
+  <main id="contenido" class="main" tabindex="-1">
+    <div class="page-head">
+      <h1>Panel de cartera</h1>
+      <div class="head-right">
+        <p id="leyenda-corte" class="corte"></p>
+        <button class="btn btn-sec" id="btn-actualizar" type="button"><span aria-hidden="true">⟳</span> <span id="btn-actualizar-txt">Actualizar</span></button>
+      </div>
+    </div>
+    <p class="sr-only" id="anuncio" role="status" aria-live="polite"></p>
+
+    <div id="alerta-error" class="alert" role="alert" hidden>
+      <span aria-hidden="true" class="alert-ic">⚠</span>
+      <div>
+        <strong>No se pudo cargar el panel de cartera.</strong>
+        <p>Hubo un problema de conexión con el servidor. Tus datos no se han modificado. Código: PAN-503.</p>
+      </div>
+      <button class="btn btn-sec" id="btn-reintentar" type="button">Reintentar</button>
+    </div>
+
+    <div id="panel">
+      <!-- Barra de controles -->
+      <div class="controles" id="controles">
+        <div class="ctl">
+          <span class="ctl-label" id="lbl-moneda">Moneda</span>
+          <div class="seg" role="radiogroup" aria-labelledby="lbl-moneda" aria-describedby="moneda-ayuda" id="seg-moneda">
+            <label><input type="radio" name="moneda" value="PEN" checked><span>S/</span><span class="seg-aviso" data-aviso="PEN" hidden>• Vencidos</span></label>
+            <label><input type="radio" name="moneda" value="USD"><span>US$</span><span class="seg-aviso" data-aviso="USD" hidden>• Vencidos</span></label>
+          </div>
+          <span class="ayuda" id="moneda-ayuda">Solo cambia esta consulta.</span>
+        </div>
+        <div class="ctl">
+          <span class="ctl-label" id="lbl-ventana">Proyección</span>
+          <div class="seg" role="radiogroup" aria-labelledby="lbl-ventana" aria-describedby="ventana-ayuda">
+            <label><input type="radio" name="ventana" value="7" checked><span>7 días</span></label>
+            <label><input type="radio" name="ventana" value="10"><span>10 días</span></label>
+            <label><input type="radio" name="ventana" value="15"><span>15 días</span></label>
+          </div>
+          <span class="ayuda" id="ventana-ayuda">Se guarda como tu preferencia.</span>
+        </div>
+      </div>
+
+      <!-- Indicadores -->
+      <section aria-label="Indicadores de cartera" class="indicadores" id="indicadores"></section>
+
+      <!-- Fila 2 -->
+      <div class="fila2" id="fila2">
+        <section class="card card-proy" aria-labelledby="t-proy" id="card-proy">
+          <div class="card-cab">
+            <h2 id="t-proy">Próximos vencimientos (7 días)</h2>
+            <div class="tabs" role="tablist" aria-label="Vista de la proyección">
+              <button role="tab" id="tab-grafico" aria-controls="pnl-grafico" aria-selected="true" tabindex="0">Gráfico</button>
+              <button role="tab" id="tab-tabla" aria-controls="pnl-tabla" aria-selected="false" tabindex="-1">Tabla</button>
+            </div>
+          </div>
+          <div id="proy-cuerpo">
+            <div role="tabpanel" id="pnl-grafico" aria-labelledby="tab-grafico">
+              <div class="grafico-wrap" id="grafico-wrap" tabindex="0" aria-label="Gráfico de barras de cobros y pagos por día. Desplázate horizontalmente si es necesario; usa la pestaña Tabla para ver los mismos datos en texto."></div>
+              <ul class="leyenda-graf" aria-hidden="true">
+                <li><span class="sw sw-cobros"></span> Cobros</li>
+                <li><span class="sw sw-pagos"></span> Pagos</li>
+              </ul>
+            </div>
+            <div role="tabpanel" id="pnl-tabla" aria-labelledby="tab-tabla" hidden>
+              <div class="tabla-wrap tabla-proy-wrap">
+                <table class="tabla tabla-simple" id="tabla-proy"></table>
+              </div>
+            </div>
+            <p class="resumen" id="proy-resumen"></p>
+          </div>
+        </section>
+
+        <section class="card card-s5" aria-labelledby="t-s5" id="card-s5">
+          <h2 id="t-s5">Tiempo promedio de cobro de comprobantes saldados</h2>
+          <div class="campo">
+            <label for="s5-mes">Mes</label>
+            <select id="s5-mes"></select>
+          </div>
+          <div id="s5-cuerpo"></div>
+        </section>
+      </div>
+
+      <!-- Promesas (S1) -->
+      <section class="card" aria-labelledby="t-prom" id="card-promesas">
+        <h2 id="t-prom">Promesas de pago activas</h2>
+        <div id="prom-cuerpo"></div>
+      </section>
+
+      <!-- Listado de movimientos -->
+      <section aria-labelledby="titulo-movimientos" class="movimientos" id="movimientos">
+        <div class="mov-cab">
+          <div>
+            <h2 id="titulo-movimientos" tabindex="-1">Movimientos</h2>
+            <p class="mov-cuenta" id="mov-cuenta" role="status"></p>
+          </div>
+          <button class="btn btn-sec" type="button" data-nav="P-007 Avisos de cobranza">Ir a avisos <span aria-hidden="true">▸</span></button>
+        </div>
+
+        <div class="filtros" id="filtros">
+          <div class="campo">
+            <label for="f-sentido">Sentido</label>
+            <select id="f-sentido"><option value="todos">Todos</option><option value="cobrar">Cobrar</option><option value="pagar">Pagar</option></select>
+          </div>
+          <div class="campo">
+            <label for="f-estado">Estado</label>
+            <select id="f-estado"><option value="todos">Todos</option><option value="VENCIDA">Vencida</option><option value="PENDIENTE">Pendiente</option><option value="CANCELADA">Cancelada</option></select>
+          </div>
+          <div class="campo campo-buscar">
+            <label for="f-buscar">Buscar</label>
+            <input id="f-buscar" type="search" placeholder="Contacto o comprobante" autocomplete="off">
+          </div>
+          <div class="campo">
+            <label for="f-orden">Ordenar por</label>
+            <select id="f-orden">
+              <option value="def">Predeterminado (vencidas primero)</option>
+              <option value="venc-asc">Vencimiento (más antiguo)</option>
+              <option value="venc-desc">Vencimiento (más reciente)</option>
+              <option value="importe-desc">Importe (mayor)</option>
+              <option value="importe-asc">Importe (menor)</option>
+              <option value="saldo-desc">Saldo (mayor)</option>
+              <option value="saldo-asc">Saldo (menor)</option>
+              <option value="contacto-asc">Contacto (A–Z)</option>
+              <option value="contacto-desc">Contacto (Z–A)</option>
+            </select>
+          </div>
+          <label class="switch"><input type="checkbox" role="switch" id="f-anuladas"><span class="switch-pista" aria-hidden="true"></span><span>Incluir comprobantes anulados</span></label>
+        </div>
+
+        <div class="tabla-wrap" id="mov-tabla-wrap">
+          <table class="tabla" id="tabla-mov" role="table">
+            <thead role="rowgroup">
+              <tr role="row">
+                <th scope="col" role="columnheader">Sentido</th>
+                <th scope="col" role="columnheader" aria-sort="none"><button class="th-btn" data-sort="contacto" type="button">Contacto <span class="sort-ic" aria-hidden="true">↕</span></button></th>
+                <th scope="col" role="columnheader">Comprobante</th>
+                <th scope="col" role="columnheader">Cuota</th>
+                <th scope="col" role="columnheader" aria-sort="none"><button class="th-btn" data-sort="venc" type="button">Vencimiento <span class="sort-ic" aria-hidden="true">↕</span></button></th>
+                <th scope="col" role="columnheader" aria-sort="none" class="num"><button class="th-btn" data-sort="importe" type="button"><span class="lbl-importe">Importe (S/)</span> <span class="sort-ic" aria-hidden="true">↕</span></button></th>
+                <th scope="col" role="columnheader" aria-sort="none" class="num"><button class="th-btn" data-sort="saldo" type="button"><span class="lbl-saldo">Saldo (S/)</span> <span class="sort-ic" aria-hidden="true">↕</span></button></th>
+                <th scope="col" role="columnheader">Estado</th>
+                <th scope="col" role="columnheader" class="num">Atraso</th>
+              </tr>
+            </thead>
+            <tbody role="rowgroup" id="mov-cuerpo"></tbody>
+          </table>
+        </div>
+        <div class="vacio" id="mov-vacio" role="status" hidden></div>
+        <p class="nota">Orden predeterminado: vencidas, luego pendientes (por fecha de vencimiento); canceladas y anuladas al final.</p>
+      </section>
+    </div>
+  </main>
+</div>
+
+<dialog id="dlg-nav" aria-labelledby="dlg-titulo">
+  <h2 id="dlg-titulo">Navegación simulada</h2>
+  <p id="dlg-texto"></p>
+  <p class="ayuda">Este prototipo solo muestra la pantalla P-002.</p>
+  <div class="dlg-acc"><button class="btn btn-prim" id="dlg-cerrar" type="button">Entendido</button></div>
+</dialog>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
