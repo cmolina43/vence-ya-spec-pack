@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P-010 Configuración de la empresa · VenceYa</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+<!-- Controles del prototipo (no forman parte de la pantalla) -->
+<details class="demo" open>
+  <summary>Controles del prototipo (solo para validar con stakeholders)</summary>
+  <div class="demo-grid">
+    <fieldset>
+      <legend>Estado de la pantalla</legend>
+      <label><input type="radio" name="demo-estado" value="datos" checked> Con datos</label>
+      <label><input type="radio" name="demo-estado" value="vacio"> Listas vacías</label>
+      <label><input type="radio" name="demo-estado" value="cargando"> Cargando</label>
+      <label><input type="radio" name="demo-estado" value="error"> Error al cargar</label>
+    </fieldset>
+    <fieldset>
+      <legend>Simulaciones</legend>
+      <label><input type="checkbox" id="demo-falla"> Error de servidor al guardar</label>
+    </fieldset>
+    <fieldset>
+      <legend>Rol y tema</legend>
+      <label>Rol
+        <select id="demo-rol"><option value="ADMINISTRADOR">Administrador</option><option value="SUPERVISOR">Supervisor</option><option value="OPERADOR">Operador</option></select>
+      </label>
+      <label>Tema
+        <select id="demo-tema"><option value="auto">Según el sistema</option><option value="claro">Claro</option><option value="oscuro">Oscuro</option></select>
+      </label>
+    </fieldset>
+    <button class="btn btn-sec btn-mini" type="button" id="demo-reset">Restablecer datos</button>
+  </div>
+  <p class="demo-tip">Pruebas sugeridas: guardar el correo vacío o «abc» (RN-165) · cambiar a cobranzas@andina.example · quitar a «marta» (inactiva) · agregar usuarios a la lista por pagar · cambiar el rol a Supervisor (sin permiso, RN-060).</p>
+</details>
+
+<header class="topbar">
+  <button class="btn btn-ghost btn-icono menu-btn" id="btn-menu" aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="sidebar">☰</button>
+  <div class="logo"><span class="logo-marca" aria-hidden="true">V</span> VenceYa</div>
+  <div class="usuario"><span class="usuario-datos"><strong>Rosa Paredes</strong> · <span id="usuario-rol">Administrador</span></span>
+    <span class="empresa">Comercial Andina S.A.C.</span></div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Navegación principal">
+    <ul>
+      <li><a href="#" data-nav="P-002 Panel de cartera">Panel de cartera</a></li>
+      <li><a href="#" data-nav="P-004 Comprobantes">Comprobantes</a></li>
+      <li><a href="#" data-nav="P-007 Avisos de cobranza">Avisos</a></li>
+      <li><a href="#" data-nav="P-003 Contactos">Contactos</a></li>
+      <li><a href="#" aria-current="page">Configuración</a></li>
+    </ul>
+  </nav>
+  <div class="backdrop" id="backdrop" hidden></div>
+
+  <main id="contenido" class="main" tabindex="-1">
+    <h1>Configuración de la empresa</h1>
+    <p class="sr-only" id="anuncio" role="status" aria-live="polite"></p>
+
+    <div id="alerta-error" class="alert" role="alert" hidden>
+      <span aria-hidden="true" class="alert-ic">⚠</span>
+      <div>
+        <strong>No se pudo cargar la configuración de la empresa.</strong>
+        <p>Hubo un problema de conexión con el servidor. Tus datos no se han modificado. Código: CFG-503.</p>
+      </div>
+      <button class="btn btn-sec" id="btn-reintentar" type="button">Reintentar</button>
+    </div>
+
+    <div id="alerta-permiso" class="alert alert-info" role="alert" hidden>
+      <span aria-hidden="true" class="alert-ic">🔒</span>
+      <div>
+        <strong>Sin permiso.</strong>
+        <p>Solo el administrador de la empresa puede ver y cambiar esta configuración. Si necesitas un cambio, pídeselo a tu administrador.</p>
+      </div>
+    </div>
+
+    <div id="contenido-config" class="config">
+      <!-- Datos de la empresa -->
+      <section class="card" aria-labelledby="t-empresa">
+        <h2 id="t-empresa">Datos de la empresa</h2>
+        <dl class="datos" id="datos-empresa">
+          <div><dt>Razón social</dt><dd>COMERCIAL ANDINA S.A.C.</dd></div>
+          <div><dt>RUC</dt><dd>20123456789</dd></div>
+        </dl>
+        <p class="ayuda">Solo lectura. Para cambiar estos datos, contacta al equipo de VenceYa.</p>
+      </section>
+
+      <!-- Correo administrativo -->
+      <section class="card" aria-labelledby="t-correo">
+        <h2 id="t-correo">Correo administrativo</h2>
+        <p class="ayuda">Recibe copia de todos los avisos y es la dirección de respuesta.</p>
+        <form id="form-correo" novalidate class="fila-form">
+          <div class="campo">
+            <label for="f-correo">Correo administrativo <span class="req" aria-hidden="true">*</span></label>
+            <input id="f-correo" type="text" inputmode="email" autocomplete="off" aria-required="true" aria-describedby="f-correo-nota f-correo-error" value="admin@andina.example">
+            <span class="error" id="f-correo-error" hidden></span>
+          </div>
+          <button class="btn btn-prim" type="submit" id="btn-correo">Guardar</button>
+        </form>
+        <p class="ayuda" id="f-correo-nota">Los avisos ya enviados no cambian.</p>
+      </section>
+
+      <!-- Moneda -->
+      <section class="card" aria-labelledby="t-moneda">
+        <h2 id="t-moneda">Moneda por defecto del panel</h2>
+        <form id="form-moneda" class="fila-form fila-moneda">
+          <fieldset class="seg-grupo">
+            <legend class="sr-only">Moneda por defecto</legend>
+            <div class="seg">
+              <label><input type="radio" name="moneda" value="PEN" checked><span>S/ Soles</span></label>
+              <label><input type="radio" name="moneda" value="USD"><span>US$ Dólares</span></label>
+            </div>
+          </fieldset>
+          <button class="btn btn-prim" type="submit" id="btn-moneda">Guardar</button>
+        </form>
+        <p class="ayuda">Se usa para los usuarios que no eligieron su propia moneda.</p>
+      </section>
+
+      <!-- Listas de copias -->
+      <div class="listas">
+        <section class="card" aria-labelledby="t-cobrar" data-lista="cobrar">
+          <h2 id="t-cobrar">Copias de avisos por cobrar</h2>
+          <ul class="usuarios" id="lista-cobrar"></ul>
+          <p class="vacio-lista" id="vacio-cobrar" hidden>Lista vacía. Solo se copiará al correo administrativo.</p>
+          <div class="combo" data-combo="cobrar"></div>
+          <span class="error" id="error-cobrar" role="alert" hidden></span>
+          <p class="ayuda">Solo supervisores y administradores activos de tu empresa.</p>
+        </section>
+
+        <section class="card" aria-labelledby="t-pagar" data-lista="pagar">
+          <h2 id="t-pagar">Copias de avisos por pagar</h2>
+          <ul class="usuarios" id="lista-pagar"></ul>
+          <p class="vacio-lista" id="vacio-pagar" hidden>Lista vacía. Solo se copiará al correo administrativo.</p>
+          <div class="combo" data-combo="pagar"></div>
+          <span class="error" id="error-pagar" role="alert" hidden></span>
+          <p class="ayuda">Solo supervisores y administradores activos de tu empresa.</p>
+        </section>
+      </div>
+
+      <details class="auditoria">
+        <summary>Registro de auditoría (simulado · RN-168 y RN-176)</summary>
+        <ul id="auditoria"><li class="ayuda">Aún no hay cambios en esta sesión.</li></ul>
+      </details>
+    </div>
+  </main>
+</div>
+
+<dialog id="dlg-nav" aria-labelledby="dlg-titulo">
+  <h2 id="dlg-titulo">Navegación simulada</h2>
+  <p id="dlg-texto"></p>
+  <p class="ayuda">Este prototipo solo muestra la pantalla P-010.</p>
+  <div class="dlg-acc"><button class="btn btn-prim" id="dlg-cerrar" type="button">Entendido</button></div>
+</dialog>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

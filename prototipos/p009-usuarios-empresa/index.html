@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P-009 Usuarios de la empresa · VenceYa</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+<!-- Controles del prototipo (no forman parte de la pantalla) -->
+<details class="demo" open>
+  <summary>Controles del prototipo (solo para validar con stakeholders)</summary>
+  <div class="demo-grid">
+    <fieldset>
+      <legend>Estado de la pantalla</legend>
+      <label><input type="radio" name="demo-estado" value="datos" checked> Con datos</label>
+      <label><input type="radio" name="demo-estado" value="vacio"> Vacío</label>
+      <label><input type="radio" name="demo-estado" value="cargando"> Cargando</label>
+      <label><input type="radio" name="demo-estado" value="error"> Error</label>
+    </fieldset>
+    <fieldset>
+      <legend>Rol de la sesión</legend>
+      <label><input type="radio" name="demo-rol" value="ADMINISTRADOR" checked> Administrador (Ana)</label>
+      <label><input type="radio" name="demo-rol" value="OPERADOR"> Operador (acceso directo a /usuarios)</label>
+    </fieldset>
+    <fieldset>
+      <legend>Simulación</legend>
+      <label><input type="checkbox" id="demo-fallo-correo"> El correo de invitación falla o no se confirma</label>
+      <label><input type="checkbox" id="demo-conflicto"> Otro administrador modifica al usuario antes de guardar (RN-160)</label>
+      <button class="btn btn-sec" id="demo-unico" type="button">Dejar a Ana como único administrador activo</button>
+      <button class="btn btn-sec" id="demo-reset" type="button">Restablecer datos</button>
+    </fieldset>
+    <fieldset>
+      <legend>Tema</legend>
+      <label>Tema
+        <select id="demo-tema"><option value="auto">Según el sistema</option><option value="claro">Claro</option><option value="oscuro">Oscuro</option></select>
+      </label>
+    </fieldset>
+  </div>
+  <p class="demo-tip">Ruta simulada: <code id="demo-ruta">/usuarios</code> · Pruebas sugeridas: invitar a <code>luis@andina.example</code> (correo ya registrado) o a <code> Nuevo.Usuario@Andina.example </code> (se normaliza, RN-139) · activar «correo falla» e invitar · en luis: «Reenviar invitación» · «Cambiar rol» a Operador en rosa (aviso de copias) · «Reactivar» a marta (vuelve ACTIVO) y a pedro (nunca definió contraseña → vuelve INVITADO) · «Dejar a Ana como único administrador» y probar desactivarla o cambiarle el rol · cambiar el rol de Ana con otro administrador activo (cierra su sesión → P-001) · cambiar «Rol de la sesión» a Operador.</p>
+  <div class="audit" id="audit-wrap" hidden>
+    <strong>Auditoría simulada (RN-161)</strong>
+    <ul id="audit-lista"></ul>
+  </div>
+</details>
+
+<header class="topbar">
+  <button class="btn btn-ghost btn-icono menu-btn" id="btn-menu" aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="sidebar">☰</button>
+  <div class="logo"><span class="logo-marca" aria-hidden="true">V</span> VenceYa</div>
+  <div class="usuario"><span class="usuario-datos"><strong id="hdr-nombre">Ana Torres</strong> · <span id="hdr-rol">Administrador</span></span>
+    <span class="empresa">Distribuidora Andina S.A.C.</span></div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Navegación principal">
+    <ul>
+      <li><a href="#" data-nav="P-002 Panel de cartera">Panel de cartera</a></li>
+      <li><a href="#" data-nav="P-004 Comprobantes">Comprobantes</a></li>
+      <li><a href="#" data-nav="P-008 Bandeja de avisos">Avisos</a></li>
+      <li><a href="#" data-nav="P-003 Contactos">Contactos</a></li>
+      <li id="nav-usuarios"><a href="#" aria-current="page">Usuarios</a></li>
+      <li id="nav-config"><a href="#" data-nav="P-020 Configuración">Configuración</a></li>
+    </ul>
+  </nav>
+  <div class="backdrop" id="backdrop" hidden></div>
+
+  <main id="contenido" class="main" tabindex="-1">
+    <!-- Sin permiso (RN-060): rol distinto de ADMINISTRADOR en acceso directo -->
+    <section class="sinpermiso" id="sin-permiso" hidden aria-labelledby="sp-titulo">
+      <span class="ic" aria-hidden="true">🔒</span>
+      <h1 id="sp-titulo">Sin permiso</h1>
+      <p>No tienes permiso para ver esta pantalla. La administración de usuarios es exclusiva del rol Administrador.</p>
+      <button class="btn btn-prim" type="button" data-nav="P-002 Panel de cartera">Ir al panel de cartera</button>
+    </section>
+
+    <div id="contenido-admin" style="display:contents">
+      <div class="page-head">
+        <h1>Usuarios</h1>
+        <button class="btn btn-prim" id="btn-invitar" type="button"><span aria-hidden="true">+</span> Invitar usuario</button>
+      </div>
+      <p class="sr-only" id="anuncio" role="status" aria-live="polite"></p>
+
+      <div class="alertas" id="alertas"></div>
+
+      <div id="alerta-error" class="alert" role="alert" hidden>
+        <span aria-hidden="true" class="alert-ic">⚠</span>
+        <div>
+          <strong>No se pudo cargar la lista de usuarios.</strong>
+          <p>Hubo un problema de conexión con el servidor. Los usuarios no se han modificado. Código: USU-503.</p>
+        </div>
+        <button class="btn btn-sec" id="btn-reintentar" type="button">Reintentar</button>
+      </div>
+
+      <form class="filtros" id="filtros" novalidate aria-label="Filtros de usuarios">
+        <div class="campo">
+          <label for="f-estado">Estado</label>
+          <select id="f-estado">
+            <option value="todos">Todos</option>
+            <option value="ACTIVO">Activo</option>
+            <option value="INVITADO">Invitado</option>
+            <option value="DESACTIVADO">Desactivado</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label for="f-rol">Rol</label>
+          <select id="f-rol">
+            <option value="todos">Todos</option>
+            <option value="ADMINISTRADOR">Administrador</option>
+            <option value="SUPERVISOR">Supervisor</option>
+            <option value="OPERADOR">Operador</option>
+          </select>
+        </div>
+        <div class="campo"><button class="btn btn-ghost" id="btn-limpiar" type="button">Limpiar filtros</button></div>
+      </form>
+
+      <div class="resumen" id="resumen" role="status"></div>
+
+      <div class="tabla-wrap" id="tabla-wrap">
+        <table class="tabla" id="tabla">
+          <caption class="sr-only">Usuarios de Distribuidora Andina S.A.C.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Correo</th>
+              <th scope="col">Rol</th>
+              <th scope="col">Estado</th>
+              <th scope="col">Detalle</th>
+              <th scope="col" class="col-acc">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpo"></tbody>
+        </table>
+      </div>
+      <div class="vacio" id="vacio" role="status" hidden></div>
+
+      <p class="nota">Los usuarios se desactivan, nunca se eliminan: su historial de pagos, anulaciones y ediciones se conserva con su identidad (RN-099). Nunca conoces ni defines la contraseña de nadie (RN-098).</p>
+    </div>
+  </main>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<!-- P-009.D1 Invitar usuario -->
+<dialog class="dlg-form" id="dlg-inv" aria-labelledby="inv-titulo">
+  <form class="form-dlg" id="form-inv" novalidate>
+    <div class="dlg-cab">
+      <h2 id="inv-titulo">Invitar usuario</h2>
+      <button class="btn btn-ghost btn-icono" type="button" id="inv-x" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="campo">
+      <label for="inv-correo">Correo electrónico <span class="req" aria-hidden="true">*</span></label>
+      <input id="inv-correo" type="text" inputmode="email" autocomplete="off" spellcheck="false" aria-required="true" aria-describedby="inv-correo-err" placeholder="nombre@empresa.example">
+      <p class="error" id="inv-correo-err" hidden></p>
+    </div>
+    <fieldset aria-describedby="inv-rol-err">
+      <legend>Rol <span class="req" aria-hidden="true">*</span></legend>
+      <label class="opcion"><input type="radio" name="inv-rol" value="OPERADOR"><span><span class="o-tit">OPERADOR</span><span class="o-desc">Registra contactos, comprobantes, pagos y avisos; no anula.</span></span></label>
+      <label class="opcion"><input type="radio" name="inv-rol" value="SUPERVISOR"><span><span class="o-tit">SUPERVISOR</span><span class="o-desc">Además anula pagos y comprobantes.</span></span></label>
+      <label class="opcion"><input type="radio" name="inv-rol" value="ADMINISTRADOR"><span><span class="o-tit">ADMINISTRADOR</span><span class="o-desc">Además administra usuarios y la configuración de la empresa.</span></span></label>
+      <p class="error" id="inv-rol-err" hidden></p>
+    </fieldset>
+    <p class="nota-fija">Recibirá un enlace válido por 72 horas para definir su contraseña. Tú no conoces ni defines su contraseña.</p>
+    <div class="dlg-acc" style="margin-top:0">
+      <button class="btn btn-sec" type="button" id="inv-cancelar">Cancelar</button>
+      <button class="btn btn-prim" type="submit" id="inv-enviar">Enviar invitación</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- P-009.D2 Cambiar rol -->
+<dialog class="dlg-form" id="dlg-rol" aria-labelledby="rol-titulo">
+  <form class="form-dlg" id="form-rol" novalidate>
+    <div class="dlg-cab">
+      <div>
+        <h2 id="rol-titulo">Cambiar rol</h2>
+        <p class="dlg-sub" id="rol-sub"></p>
+      </div>
+      <button class="btn btn-ghost btn-icono" type="button" id="rol-x" aria-label="Cerrar">✕</button>
+    </div>
+    <fieldset>
+      <legend>Rol <span class="req" aria-hidden="true">*</span></legend>
+      <div id="rol-opciones" style="display:grid;gap:8px"></div>
+    </fieldset>
+    <div class="alert alert-peq info" role="note"><span aria-hidden="true">⚠</span><div id="rol-aviso"></div></div>
+    <div class="alert alert-peq info" id="rol-copias" role="status" hidden><span aria-hidden="true">ℹ</span><div>Dejará de recibir copias de avisos.</div></div>
+    <div class="alert alert-peq" id="rol-error" role="alert" hidden><span aria-hidden="true">⚠</span><div></div></div>
+    <div class="dlg-acc" style="margin-top:0">
+      <button class="btn btn-sec" type="button" id="rol-cancelar">Cancelar</button>
+      <button class="btn btn-prim" type="submit" id="rol-guardar" disabled>Cambiar rol</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- P-009.D3 Desactivar usuario (AlertDialog) -->
+<dialog id="dlg-des" role="alertdialog" aria-labelledby="des-titulo" aria-describedby="des-desc">
+  <h2 id="des-titulo"></h2>
+  <div id="des-desc"></div>
+  <div class="alert alert-peq" id="des-error" role="alert" hidden><span aria-hidden="true">⚠</span><div></div></div>
+  <div class="dlg-acc">
+    <button class="btn btn-sec" type="button" id="des-cancelar">Cancelar</button>
+    <button class="btn btn-peligro" type="button" id="des-confirmar">Desactivar</button>
+  </div>
+</dialog>
+
+<dialog id="dlg-sesion" aria-labelledby="ses-titulo">
+  <h2 id="ses-titulo">Sesión cerrada</h2>
+  <p id="ses-texto"></p>
+  <p class="ayuda">Navegación simulada a P-001 Iniciar sesión.</p>
+  <div class="dlg-acc"><button class="btn btn-prim" id="ses-reiniciar" type="button">Volver a entrar (reiniciar prototipo)</button></div>
+</dialog>
+
+<dialog id="dlg-nav" aria-labelledby="nav-titulo">
+  <h2 id="nav-titulo">Navegación simulada</h2>
+  <p id="nav-texto"></p>
+  <p class="ayuda">Este prototipo solo muestra la pantalla P-009.</p>
+  <div class="dlg-acc"><button class="btn btn-prim" id="nav-cerrar" type="button">Entendido</button></div>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>
