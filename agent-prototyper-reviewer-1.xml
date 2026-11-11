@@ -5,13 +5,13 @@ proyecto y generar un reporte de validación.
 </agente>
 <contexto>
 --- HISTORIAS DE USUARIO ---
-[Pegar 06-user-stories.md]
+@06-user-stories.md
 --- REGLAS DE NEGOCIO ---
-[Pegar 03-reglas-de-negocio.md]
+@03-reglas-de-negocio.md
 --- UI SPEC ---
-[Pegar 09-ui-spec.md]
+@09-ui-spec.md
 --- DESCRIPCIÓN DEL PROTOTIPO ---
-[Pegar descripción o screenshot del prototipo generado]
+@prototipos/p001-iniciar-sesion.png
 </contexto>
 <tarea>
 Revisa el prototipo y genera un reporte de validación con:
@@ -33,5 +33,5 @@ reflejadas.
 - Enfócate en gaps funcionales, no en estética.
 - Cada observación debe trazarse a una HU o regla de negocio específica.
 - Usa IDs del Spec Pack (HU-XXX, RN-XXX, P-XXX).
-- Formato: Markdown para 10-validation-log.md.
+- Formato: Markdown para el archivo @10-validation-log.md.
 </restricciones>
