@@ -9,6 +9,7 @@
 **Montos:** en la moneda original del comprobante (S/ o US$). **Fechas:** ISO 8601 (AAAA-MM-DD).
 **Decisiones de la revisión QA de HUs (2026-11-09; `06-user-stories.md`, «Revisión QA»):** QA-02, la recuperación de contraseña responde igual exista o no la cuenta, con un solo enlace vigente y un máximo de 3 envíos por hora (RN-258, RN-259 y RN-260). QA-04, el comentario del aviso se guarda y envía en mayúsculas (RN-162). QA-05, el nombre del contacto admite también dígitos y los signos «.», «,», «&», «-», «'», «(», «)» y «/» (RN-162). QA-06, la razón social de la empresa sigue el mismo formato que el nombre del contacto (RN-162 y RN-094). QA-12, todos los roles consultan el indicador de comportamiento de pago (RN-261 y RN-060).
 **Decisión QA2-10 (2026-11-07):** el mantenimiento usa solo ACTIVO y DESACTIVADO; la eliminación ordinaria se limita a contactos sin comprobantes (RN-127, RN-129, RN-130). Se retira la seudonimización y se sustituye RN-151; el procedimiento interno de solicitudes de eliminación de datos personales queda pendiente en la pregunta 31.
+**Decisión E-015 (2026-11-10):** por decisión del usuario se retira el cifrado por campo y la gestión de claves de datos (RN-011, RN-189 a RN-192, RN-142, RN-219, RN-220, RN-223, RN-224, RN-226, RN-229, RN-231 a RN-239, RN-241 y RN-242). Se reescriben RN-140, RN-141, RN-221, RN-222, RN-227, RN-228, RN-230 y RN-240 sin claves de datos, y se agregan el hash de tokens (RN-262) y la trazabilidad de accesos del art. 46 del D.S. 016-2024-JUS (RN-263 a RN-266).
 
 **Preguntas abiertas:** el registro central de decisiones pendientes, con responsable por asignar y estado, está en `05-preguntas-abiertas.md`. El bloqueo de acceso (21), la duración de la sesión (27), la retención y eliminación de datos (28) y la cuenta de correo de prueba (33) se resolvieron el 2026-11-06 (RN-013, RN-103, RN-149, RN-150, RN-151). La fórmula del indicador, el tratamiento de cuotas sin pagos y el tiempo promedio de cobro (preguntas 16, 17 y 18) se resolvieron el 2026-11-06 (RN-053, RN-055, RN-056, RN-147, RN-148). La aptitud y los destinatarios de los reenvíos y reintentos de avisos (auditoría QA2-03 y QA2-04) se resolvieron el 2026-11-07 (RN-155 y ajustes en RN-041, RN-066, RN-112, RN-113, RN-130, RN-136 y RN-138). Las reglas que dependen de decisiones pendientes se marcan con `[pendiente de confirmación]`. Las respuestas históricas se conservan en `05-preguntas-abiertas-respuestas.md`.
 
@@ -100,8 +101,10 @@ CUANDO un usuario edita un contacto ACTIVO o DESACTIVADO, el sistema DEBE permit
 Patrón EARS: Unwanted
 El contacto DEBE tener uno de dos estados: ACTIVO o DESACTIVADO; se crea ACTIVO. El sistema DEBE permitir a cualquier usuario de la empresa crear, editar, desactivar y reactivar sus contactos, conforme a RN-060 y las validaciones de cada operación. El catálogo es compartido por los usuarios de esa empresa y NO DEBE mostrar contactos de otras empresas. Al registrar o cambiar el contacto de un comprobante, el usuario DEBE buscar y seleccionar un contacto ACTIVO de su empresa.
 SI un contacto tiene al menos un comprobante registrado, incluidos los anulados, el sistema NO DEBE eliminarlo; el sistema DEBE permitir su edición, desactivación o reactivación, sujetas a las validaciones de cada operación. Desactivar conserva sus datos, comprobantes, cuotas e historial y la reserva de su correo. Sus cuotas con saldo siguen en la lista de cuotas por avisar; el sistema DEBE permitir avisarlas si cumplen RN-155 y las demás validaciones del envío.
-CUANDO un usuario de la empresa solicita eliminar un contacto sin comprobantes, ACTIVO o DESACTIVADO, el sistema DEBE pedir confirmación. Al confirmar, DEBE verificar de nuevo en el servidor que no tenga comprobantes y eliminar el registro y liberar su correo como una sola operación (RN-127, RN-160). Si se registra un comprobante concurrentemente, el sistema DEBE garantizar que se complete como máximo una de las dos operaciones: NO DEBE dejar un comprobante sin contacto ni eliminar un contacto con comprobantes. La eliminación ordinaria NO DEBE borrar ni modificar comprobantes, cuotas o pagos. La excepción por baja contractual de toda la empresa se rige por RN-152.
+CUANDO un usuario de la empresa solicita eliminar un contacto sin comprobantes, ACTIVO o DESACTIVADO, el sistema DEBE pedir confirmación. Al confirmar, DEBE verificar de nuevo en el servidor que no tenga comprobantes y eliminar el registro y liberar su correo como una sola operación (RN-127, RN-160). Si se registra un comprobante concurrentemente, el sistema DEBE garantizar que se complete como máximo una de las dos operaciones: NO DEBE dejar un comprobante sin contacto ni eliminar un contacto con comprobantes. La eliminación ordinaria NO DEBE borrar ni modificar comprobantes, cuotas o pagos, y DEBE conservar sin cambios el historial de ediciones del contacto (RN-129), sin vincularlo a un contacto nuevo que reutilice el correo. La excepción por baja contractual de toda la empresa se rige por RN-152.
 ✅ **Ejemplo:** un usuario elimina, tras confirmar, un contacto sin comprobantes; su correo queda disponible para un contacto nuevo de la misma empresa, con otro identificador.
+✅ **Ejemplo:** el contacto 42 tenía dos ediciones de correo; al eliminarlo no queda su fila en `contactos`, el correo se acepta en el contacto 43 y las dos filas de historial del contacto 42 siguen intactas.
+❌ **Contraejemplo:** la eliminación borra o anonimiza las filas de historial del contacto, o el contacto nuevo muestra el historial del eliminado.
 ✅ **Ejemplo:** un contacto con un comprobante anulado no puede eliminarse; puede desactivarse y luego reactivarse conservando sus datos e historial.
 ✅ **Ejemplo:** un contacto desactivado no aparece al seleccionar contacto para un comprobante nuevo, pero sus cuotas con saldo siguen disponibles para avisar conforme a RN-155.
 ❌ **Contraejemplo:** el sistema elimina un contacto con comprobantes o permite seleccionar uno desactivado para un comprobante nuevo.
@@ -189,37 +192,22 @@ El sistema DEBE ofrecer los roles ADMINISTRADOR, OPERADOR y SUPERVISOR al asigna
 ✅ **Ejemplo:** el selector de rol de un usuario muestra exactamente ADMINISTRADOR, OPERADOR y SUPERVISOR. Un usuario que pasa de OPERADOR a SUPERVISOR deja de tener el rol OPERADOR.
 ❌ **Contraejemplo:** el selector de rol muestra el rol VENTAS, que no está definido en el alcance. Un usuario tiene OPERADOR y SUPERVISOR a la vez.
 
-**RN-011** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06)
-Patrón EARS: Ubiquitous
-El sistema DEBE cifrar con AES-256-GCM, antes de persistir, el correo, teléfono y dirección de los contactos cuando existan; el RUC y correo administrativo de las empresas; y el correo de acceso de los usuarios.
-✅ **Ejemplo:** El RUC 20601234567 se guarda cifrado con AES-256-GCM.
-❌ **Contraejemplo:** La columna ruc guarda 20601234567 en texto plano.
+**RN-011** | **Retirada (2026-11-10)** | Fuente: decisión del usuario sobre M-08 del reporte de backlog; E-015; D.S. 016-2024-JUS
+Se retira el cifrado AES-256-GCM por campo de correo, teléfono y dirección de contactos, RUC y correo administrativo de empresas y correo de acceso de usuarios. Esos campos se guardan en claro y se protegen mediante aislamiento por empresa (PRINCIPIO-003), control de acceso (RN-060), trazabilidad de accesos (RN-263 a RN-266) y TLS (RN-012). Identificador reservado para trazabilidad; no establece una obligación vigente.
 
-**RN-189** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-011 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Ubiquitous
-El sistema DEBE aplicar el cifrado de RN-011 a las copias persistidas de esos campos en historiales, destinatarios de avisos y auditorías.
-✅ **Ejemplo:** El destinatario ana@example.com queda cifrado también en el aviso 501 y su auditoría.
-❌ **Contraejemplo:** El contacto está cifrado, pero el historial del aviso 501 conserva su correo legible.
+**RN-189** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira el cifrado de las copias persistidas en historiales, destinatarios de avisos y auditorías, al retirarse RN-011. Identificador reservado para trazabilidad; no establece una obligación vigente.
 
-**RN-190** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-011 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Ubiquitous
-El sistema DEBE usar un valor de inicialización que no se repita con la misma clave de cifrado.
-✅ **Ejemplo:** Dos cifrados del correo ana@example.com con la clave versión 1 usan IV distintos.
-❌ **Contraejemplo:** Dos procesos reutilizan el mismo IV con la clave versión 1.
+**RN-190** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira la exigencia de valor de inicialización no repetido, propia del cifrado retirado. Identificador reservado para trazabilidad; no establece una obligación vigente.
 
-**RN-191** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-011 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Event-driven
-CUANDO descifra un valor protegido por RN-011, el sistema DEBE verificar su integridad.
-✅ **Ejemplo:** Al leer el contacto 42 se comprueba la etiqueta de autenticación antes de utilizar su correo.
-❌ **Contraejemplo:** Se descifra el correo del contacto 42 sin comprobar su etiqueta.
+**RN-191** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira la verificación de integridad al descifrar, propia del cifrado retirado. Identificador reservado para trazabilidad; no establece una obligación vigente.
 
-**RN-192** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-011 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Unwanted
-SI falla la verificación de integridad de un valor cifrado, el sistema NO DEBE devolver el contenido ni recurrir a una copia en texto plano como alternativa.
-✅ **Ejemplo:** La etiqueta alterada del contacto 42 impide devolver su correo.
-❌ **Contraejemplo:** Una etiqueta alterada provoca que se devuelva el correo desde una columna auxiliar legible.
+**RN-192** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira el rechazo de valores cifrados alterados, propio del cifrado retirado. Identificador reservado para trazabilidad; no establece una obligación vigente.
 
-**Contexto de RN-011:** no se exige solicitar DNI ni RUC de contactos (RN-126). Las contraseñas siguen RN-143 y RN-243 a RN-253. El alcance de cifrado no se amplía por la definición de datos personales. Véase `otros/06-diseno-seguridad-datos.md`.
+**Contexto de RN-011 (E-015, 2026-11-10):** la Ley 29733 y su reglamento (D.S. 016-2024-JUS) no exigen cifrado en reposo ni por campo; el reglamento solo menciona el cifrado para datos transferidos fuera de las instalaciones (art. 52), que cubre TLS. No se exige solicitar DNI ni RUC de contactos (RN-126) y no se almacenan números de cuenta (RN-006). Las contraseñas siguen RN-143 y RN-243 a RN-253, y los tokens RN-262. En la modalidad en la nube se asume el cifrado en reposo del proveedor de base de datos, verificado antes del lanzamiento (pregunta 26). Véase `otros/06-diseno-seguridad-datos.md`.
 
 **RN-012** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004
 Patrón EARS: Unwanted
@@ -273,7 +261,7 @@ Al rechazar una operación, la interfaz PUEDE mostrar al usuario autorizado dato
 ✅ **Ejemplo:** Tras el rechazo, la pantalla consulta la cuota 12 y muestra Saldo vigente: S/ 600.00 junto al error genérico.
 ❌ **Contraejemplo:** La pantalla obtiene S/ 600.00 del cuerpo de la respuesta de error en vez de una fuente autorizada separada.
 
-**Contexto de RN-014:** son datos personales toda información que identifica o permite identificar a una persona natural y la información económica vinculada a ella: nombres, DNI, RUC cuando identifica a una persona natural, teléfono, correo, dirección, deudas, saldos y pagos, sin lista exhaustiva. La política se aplica a todos los contactos porque el sistema no distingue personas naturales (RN-126), sin exigir DNI ni RUC. Un mensaje de error comprende texto y cuerpo de respuestas de error del API, excepciones y registros técnicos. Los identificadores internos de diagnóstico no garantizan anonimato. Quien ingresa textos libres decide y responde por su contenido (QA2-16, E-010); RN-195 no elimina la prohibición de exponerlos de RN-014 ni el contrato de entrada RN-162. RN-196 y RN-197 no amplían los campos cifrados de RN-011 ni convierten en opcional una visualización exigida por otra regla, como RN-092.
+**Contexto de RN-014:** son datos personales toda información que identifica o permite identificar a una persona natural y la información económica vinculada a ella: nombres, DNI, RUC cuando identifica a una persona natural, teléfono, correo, dirección, deudas, saldos y pagos, sin lista exhaustiva. La política se aplica a todos los contactos porque el sistema no distingue personas naturales (RN-126), sin exigir DNI ni RUC. Un mensaje de error comprende texto y cuerpo de respuestas de error del API, excepciones y registros técnicos. Los identificadores internos de diagnóstico no garantizan anonimato. Quien ingresa textos libres decide y responde por su contenido (QA2-16, E-010); RN-195 no elimina la prohibición de exponerlos de RN-014 ni el contrato de entrada RN-162. RN-196 y RN-197 no convierten en opcional una visualización exigida por otra regla, como RN-092.
 
 **RN-150** | Categoría: Datos | Prioridad: MUST | Fuente: decisión de la pregunta 28 (2026-11-06); Ley 29733 y su reglamento (D.S. 016-2024-JUS); PRINCIPIO-006 (E-008); auditoría QA2-01
 Patrón EARS: State-driven
@@ -285,8 +273,8 @@ MIENTRAS el contrato de la empresa esté vigente, el sistema NO DEBE depurar ni 
 
 **RN-151** | Categoría: Datos | Prioridad: MUST | Fuente: decisión de la pregunta 28 (2026-11-06), revisada por decisión del usuario sobre QA2-10 (2026-11-07); PRINCIPIO-005; PRINCIPIO-006
 Patrón EARS: Event-driven
-CUANDO un contacto solicita la eliminación de sus datos personales, la solicitud DEBE atenderse a través de la empresa mediante un procedimiento interno separado del mantenimiento ordinario de contactos.
-✅ **Ejemplo:** La solicitud sobre el contacto 42 se deriva a la empresa para evaluación mediante el procedimiento interno.
+CUANDO un contacto solicita la eliminación de sus datos personales, el equipo de VenceYa DEBE gestionar la solicitud internamente, en coordinación con la empresa cliente, mediante un procedimiento separado del mantenimiento ordinario de contactos.
+✅ **Ejemplo:** La empresa deriva la solicitud sobre el contacto 42 al equipo de VenceYa para su gestión mediante el procedimiento interno.
 ❌ **Contraejemplo:** El mantenimiento ordinario considera suficiente tramitar la solicitud como una desactivación.
 
 **RN-254** | Categoría: Datos | Prioridad: MUST | Fuente: decisión de la pregunta 28 (2026-11-06), revisada por decisión del usuario sobre QA2-10 (2026-11-07); PRINCIPIO-005; PRINCIPIO-006; RN-151 (obligación extraída); QA2-31 (2026-11-08)
@@ -313,7 +301,9 @@ El procedimiento de solicitudes de eliminación NO DEBE buscar ni sustituir dato
 ✅ **Ejemplo:** La solicitud del contacto 42 no busca ni sustituye datos dentro de comentarios de avisos.
 ❌ **Contraejemplo:** El procedimiento recorre el comentario del aviso 501 y sustituye automáticamente nombres.
 
-**Pendiente de RN-151:** el procedimiento interno, sus responsables, autorizaciones y alcance sobre historiales, copias y respaldos siguen [pendiente de confirmación: pregunta 31]. La separación de RN-254 a RN-257 no define ese procedimiento ni lo acredita como operativo. La retirada de la seudonimización sustituye su versión anterior (QA2-10); la responsabilidad sobre textos libres sigue QA2-16 y E-010. La restauración tras bajas contractuales sigue RN-152 y el diseño de seguridad (QA2-11).
+**Decisión de alcance de RN-151 y RN-257 (M-11, 2026-11-10):** son obligaciones MUST del procedimiento operativo interno del equipo de VenceYa, fuera del alcance funcional de la aplicación y del backlog de desarrollo. No requieren HU, pantalla, endpoint ni componente. Una automatización posterior sería un requerimiento nuevo. Esta decisión no modifica el mantenimiento ordinario de RN-127 y RN-130 ni autoriza borrar contactos con comprobantes o registros económicos desde la aplicación.
+
+**Pendiente operativo de RN-151:** la definición del procedimiento, sus responsables de ejecución, autorizaciones y alcance sobre historiales, copias y respaldos, junto con su revisión legal, siguen [pendiente de confirmación: pregunta 31] antes del lanzamiento. No constituyen una funcionalidad faltante ni una dependencia de las tareas de desarrollo. La decisión de alcance no acredita el procedimiento como operativo ni autoriza por sí sola el lanzamiento. RN-257 mantiene la prohibición de buscar o sustituir datos personales dentro de textos libres: quien los ingresa responde por su contenido (QA2-16, E-010). La retirada de la seudonimización sigue QA2-10; la restauración tras bajas contractuales sigue RN-152 y el diseño de seguridad (QA2-11).
 
 **RN-152** | Categoría: Datos | Prioridad: MUST | Fuente: decisión de la pregunta 28 (2026-11-06); auditoría QA2-01; decisión del usuario (2026-11-06); decisión QA2-11 (2026-11-07); decisiones QA2-29 y QA2-12 (2026-11-08); PRINCIPIO-003; PRINCIPIO-006 (E-008, E-011)
 Patrón EARS: Event-driven
@@ -321,7 +311,7 @@ Por decisión QA2-29 (2026-11-08), la terminación contractual DEBE formalizarla
 CUANDO se alcanza esa fecha y hora efectiva en la modalidad en la nube, el contrato termina y VenceYa DEBE bloquear el acceso de los usuarios de la empresa, invalidar sus sesiones y rechazar sin efectos sus operaciones de negocio, incluidos los avisos pendientes de envío. La restricción rige también al iniciar sesión (RN-101) y al comprobar una sesión existente (RN-149), aunque el usuario esté ACTIVO. La baja se gestiona mediante el procedimiento interno autorizado. Los datos DEBEN conservarse íntegros hasta la baja; la terminación no permite editarlos ni borrarlos parcialmente.
 Por decisión QA2-12 (2026-11-08), la empresa es responsable de exportar y conservar los históricos disponibles antes de la terminación efectiva y del bloqueo de acceso, mediante las funciones de exportación existentes y sus permisos (RN-050, RN-051, RN-077 y RN-079). Se mantienen los formatos, filtros, columnas y exclusiones de S4; esta obligación del cliente NO incorpora S4 al MVP ni promete una copia completa de todos los datos. VenceYa NO DEBE incorporar un paquete de salida contractual, entrega gestionada, validación de descarga ni confirmación de recepción. No se exige que la empresa haya exportado para formalizar la terminación o ejecutar la baja, ni se reabre el acceso tras la terminación para exportar.
 CUANDO termina el contrato de una empresa en la modalidad en la nube, VenceYa DEBE ejecutar su baja contractual dentro de los 30 días siguientes, contados desde la fecha y hora efectiva de terminación, no desde la solicitud ni desde una exportación. Que la empresa no haya exportado NO suspende ni amplía ese plazo. La baja:
-1. DEBE ejecutarla una persona autorizada del equipo de VenceYa mediante un procedimiento interno. NO DEBE estar disponible desde la aplicación para ningún rol, tampoco para ADMINISTRADOR. `[pendiente de confirmación: si se exige la aprobación de una segunda persona]`
+1. DEBE ejecutarla una persona autorizada del equipo de VenceYa mediante un procedimiento interno. NO DEBE estar disponible desde la aplicación para ningún rol, tampoco para ADMINISTRADOR. Por decisión del usuario (2026-11-10, pregunta 52), la ejecuta una sola persona autorizada, sin aprobación de una segunda persona, como procedimiento operativo manual fuera del alcance de desarrollo del proyecto.
 2. NO DEBE condicionarse a una exportación del cliente, una constancia de entrega ni una confirmación de recepción. La responsabilidad de exportar y conservar los históricos disponibles corresponde a la empresa antes de la terminación efectiva (QA2-12; E-011).
 3. DEBE eliminar todos los datos de la empresa: comprobantes, cuotas, pagos, anulaciones, reprogramaciones, contactos, usuarios, avisos, configuración e historiales. NO DEBE dejar datos parciales ni afectar a ninguna otra empresa.
 4. DEBE dejar un registro de baja en el archivo operativo de bajas del equipo de VenceYa, fuera de la base de datos del sistema y de su proceso de restauración. DEBE contener el identificador interno de la empresa, fecha y hora efectiva de terminación del contrato, fecha de la baja y referencia interna de la persona que la ejecutó, sin copiar datos personales de la empresa ni de sus contactos. No se exige fecha ni constancia de entrega de exportación. Las constancias o correos de baja se conservan como sustento con acceso restringido. El equipo DEBE conservar el registro actualizado y recuperable mientras exista algún respaldo administrado que pueda recuperar datos de la empresa. No basta con guardar el registro en otra tabla de la misma base.
@@ -777,7 +767,7 @@ CUANDO el sistema envía un aviso de vencimiento, el sistema DEBE enviarlo al co
 
 **RN-043** | Categoría: Notificaciones | Prioridad: MUST | Fuente: Alcance M5; PRINCIPIO-009; decisión del usuario (2026-11-05); Auditoría QA A-17 (2026-11-06)
 Patrón EARS: Event-driven
-CUANDO un usuario confirma el envío de un aviso de vencimiento, el sistema DEBE registrar cada intento en la bandeja interna con fecha y hora en formato ISO 8601, usuario, contacto, cuotas incluidas, tipo de aviso (RN-114), comentario si lo hay (RN-115), destinatario principal, destinatarios en copia al momento del intento y resultado de la solicitud a Resend (RN-137). Los usuarios con cualquier rol DEBEN poder ver este historial. Si Resend acepta el correo, el sistema DEBE mostrar una notificación breve «Aviso enviado»; si lo rechaza, DEBE mostrar un error persistente con la posibilidad de volver a intentar (RN-066).
+CUANDO un usuario confirma el envío de un aviso de vencimiento, el sistema DEBE registrar cada intento en la bandeja interna con fecha y hora en formato ISO 8601, usuario, contacto, cuotas incluidas, tipo de aviso (RN-114), comentario si lo hay (RN-115), destinatario principal, destinatarios en copia al momento del intento y resultado de la solicitud a Resend (RN-137). Los usuarios con cualquier rol DEBEN poder ver este historial. Si Resend acepta el correo, el sistema DEBE mostrar una notificación breve «Aviso enviado»; si falla o agota el tiempo de espera, DEBE mostrar un error persistente con la posibilidad de volver a intentar (RN-066, RN-067).
 ✅ **Ejemplo:** Ana envía el 2026-11-05 a las 09:10 el aviso de la cuota 2 de F001-00045; Resend lo acepta y la bandeja muestra "2026-11-05T09:10:00-05:00 · Ana · Cliente SAC · F001-00045 cuota 2 · Por cobrar, por vencer · Enviado".
 ❌ **Contraejemplo:** Resend rechaza el correo, pero la interfaz muestra «Aviso enviado» o la bandeja no conserva el intento.
 
@@ -789,7 +779,7 @@ CUANDO se registra un contacto, el sistema DEBE exigir un correo electrónico co
 
 **RN-045** | Categoría: Notificaciones | Prioridad: MUST | Fuente: K5; Alcance M5; decisión de la pregunta 24; decisión del usuario (2026-11-05); Auditoría QA A-17 (2026-11-06)
 Patrón EARS: Unwanted
-SI una cuota ya tiene un aviso aceptado por Resend del mismo tipo (RN-114) para la misma fecha efectiva de vencimiento (RN-071), el sistema NO DEBE enviar otro aviso hasta que el usuario vea la fecha y el usuario del último envío aceptado y confirme «Reenviar aviso». El reenvío genera un nuevo aviso con los datos vigentes (RN-113, RN-138). Un intento rechazado no activa esta confirmación ni marca la cuota como «Enviado»; un resultado sin confirmar se trata según RN-067. Una reprogramación cambia la fecha efectiva y la cuota vuelve a poder avisarse sin advertencia (pregunta 24).
+SI una cuota ya tiene un aviso aceptado por Resend del mismo tipo (RN-114) para la misma fecha efectiva de vencimiento (RN-071), el sistema NO DEBE enviar otro aviso hasta que el usuario vea la fecha y el usuario del último envío aceptado y confirme «Reenviar aviso». El reenvío genera un nuevo aviso con los datos vigentes (RN-113, RN-138). Un intento «No Enviado», por rechazo o tiempo de espera, no activa por sí mismo esta confirmación ni crea una marca «Enviado» (RN-066, RN-067). Una reprogramación cambia la fecha efectiva y la cuota vuelve a poder avisarse sin advertencia (pregunta 24).
 ✅ **Ejemplo:** la cuota 2 de F001-00045 tiene un aviso por vencer enviado el 2026-11-05 por Ana. El 2026-11-07 un usuario la selecciona de nuevo; el sistema muestra "Último aviso: 2026-11-05, Ana" y pide confirmar antes de enviar.
 ✅ **Ejemplo:** la cuota 2 se reprograma a 2026-11-20. Al seleccionarla de nuevo, el sistema no muestra advertencia porque no hay aviso para esa fecha efectiva.
 ✅ **Ejemplo:** Resend rechazó el intento anterior; la cuota sigue sin marca «Enviado» y el usuario puede volver a intentar después de ver el error.
@@ -798,46 +788,40 @@ SI una cuota ya tiene un aviso aceptado por Resend del mismo tipo (RN-114) para 
 **RN-065** | **Retirada (2026-11-05)** | Fuente: Decisión del usuario (auditoría QA, A-03)
 El plazo de anticipación deja de disparar avisos, porque el usuario decide cuándo avisar. La lista de cuotas por avisar muestra todas las cuotas pendientes y vencidas con saldo (RN-112) y no depende de la ventana del gráfico (RN-119). La regla ya no aplica y su ID no se reutiliza.
 
-**RN-066** | Categoría: Notificaciones | Prioridad: MUST | Fuente: Decisión de la pregunta 10; decisión del usuario (2026-11-05); Auditoría QA A-17 (2026-11-06); auditoría QA2-03; decisión del usuario (2026-11-07)
+**RN-066** | Categoría: Notificaciones | Prioridad: MUST | Fuente: Decisión de la pregunta 10; auditoría QA2-03; decisión del usuario (2026-11-10, M-05)
 Patrón EARS: Event-driven
-CUANDO Resend rechaza de forma confirmada una solicitud de envío de aviso, el sistema NO DEBE crear una marca «Enviado» a partir de ese intento ni quitar una marca de un envío anterior aceptado. DEBE conservar el intento rechazado, mostrar al usuario un error persistente con la acción de volver a intentar y NO DEBE reintentarlo automáticamente. Volver a intentar genera un aviso nuevo con los datos y destinatarios vigentes (RN-138); no repite el intento rechazado. El mensaje y los registros técnicos NO DEBEN incluir direcciones de correo ni importes (RN-014).
-✅ **Ejemplo:** Resend rechaza el aviso 118; la cuota continúa sin marca «Enviado», la pantalla informa que el aviso no se envió y permite volver a intentar.
-❌ **Contraejemplo:** Resend rechaza el aviso, pero la cuota aparece como «Enviado» o el sistema reintenta automáticamente.
+CUANDO el proveedor rechaza una solicitud de envío o se produce un error de comunicación, el sistema DEBE cerrar el intento como «No Enviado», conservarlo con el motivo del fallo, liberar el bloqueo de sus cuotas y mostrar un error persistente con la acción de volver a intentar manualmente. NO DEBE crear una marca «Enviado» a partir de ese intento ni quitar una marca de un envío anterior exitoso. Si no existe un envío exitoso para el tipo y vencimiento vigentes, la cuota DEBE mostrar «No Enviado» y ofrecer «Enviar aviso». Volver a intentar genera un aviso nuevo con datos y destinatarios vigentes y una clave propia (RN-138, RN-155, RN-158). NO DEBE haber reintentos automáticos. El mensaje y los registros técnicos NO DEBEN incluir direcciones de correo ni importes (RN-014).
+✅ **Ejemplo:** Resend rechaza el aviso 118; el intento queda NO_ENVIADO con motivo RECHAZO_PROVEEDOR y la cuota sin envío previo muestra «No Enviado» y permite volver a enviar.
+✅ **Ejemplo:** falla un reenvío de una cuota avisada ayer; la lista conserva «Enviado» y la fecha anterior, y la bandeja conserva el intento nuevo como «No Enviado».
+❌ **Contraejemplo:** el rechazo marca la cuota «Enviado», borra un envío anterior o dispara un reintento automático.
 
-**RN-067** | Categoría: Notificaciones | Prioridad: MUST | Fuente: Decisión de la pregunta 10; PRINCIPIO-004; decisión del usuario (2026-11-05); Auditoría QA A-17 (2026-11-06)
+**RN-067** | Categoría: Notificaciones | Prioridad: MUST | Fuente: Decisión de la pregunta 10; PRINCIPIO-004; decisión del usuario (2026-11-10, M-05)
 Patrón EARS: Unwanted
-SI una solicitud de envío termina sin respuesta concluyente de Resend, por ejemplo por tiempo de espera, el sistema NO DEBE clasificar el intento como aceptado ni rechazado, ni marcar las cuotas como «Enviado». DEBE conservar el intento como resultado sin confirmar y mostrar al usuario «No se pudo confirmar el envío». NO DEBE ofrecer un reintento inmediato de ese mismo aviso hasta verificar si Resend aceptó la solicitud; la verificación y la recuperación se rigen por RN-159. El mismo tratamiento DEBE aplicarse cuando Resend aceptó la solicitud pero el sistema no logró guardar la aceptación (RN-158). Este resultado no constituye un estado de entrega al destinatario.
-✅ **Ejemplo:** la solicitud del aviso 118 agota el tiempo de espera; la cuota no se marca «Enviado» y la interfaz informa que el resultado debe verificarse antes de reintentar.
-✅ **Ejemplo:** Resend acepta el aviso 118, pero falla el guardado de su respuesta; el intento sigue «sin confirmar» en la bandeja y la cuota muestra que debe verificarse.
-❌ **Contraejemplo:** tras el tiempo de espera, el sistema afirma que Resend rechazó el aviso y lo reenvía inmediatamente, con riesgo de duplicarlo.
+SI el intento agota el tiempo de espera del servidor, el sistema DEBE tratarlo funcionalmente como «No Enviado», registrar TIEMPO_ESPERA como motivo, liberar el bloqueo de sus cuotas y mostrar «El aviso no se envió. Puedes volver a intentar». NO DEBE exigir verificación posterior, una espera de 24 horas ni una advertencia adicional para permitir un intento manual nuevo. NO DEBE crear ni quitar una marca «Enviado» anterior. Cada nuevo intento vuelve a validar datos, destinatarios y aptitud de las cuotas (RN-138, RN-155). Una pérdida de conexión o un tiempo de espera del navegador NO DEBE prolongar el bloqueo más allá del plazo del intento en el servidor (RN-158).
+✅ **Ejemplo:** el aviso 118 agota los 10 segundos del servidor; queda NO_ENVIADO con motivo TIEMPO_ESPERA, y el usuario puede iniciar otro envío manual con datos vigentes.
+✅ **Ejemplo:** el navegador pierde la conexión mientras el servidor sigue enviando; otra pestaña solo queda bloqueada durante el plazo vigente del intento. Al agotarse sin éxito registrado, puede iniciar otro aviso manual.
+❌ **Contraejemplo:** vencido el plazo del servidor, el sistema mantiene las cuotas bloqueadas y exige «Verificar envío» o esperar 24 horas.
 
-**RN-158** | Categoría: Notificaciones | Prioridad: MUST | Fuente: Auditoría QA2-06; decisión del usuario (2026-11-07); RN-045; RN-067; RN-112; RN-157
+**Consecuencia de la decisión (2026-11-10):** «No Enviado» expresa el resultado registrado por VenceYa; un tiempo de espera no acredita que Resend no recibiera la solicitud. Un intento manual posterior puede repetir un correo recibido por el proveedor. Se acepta esa posibilidad para simplificar el flujo, sin comprobación de entrega ni pasos adicionales para el usuario.
+
+**RN-158** | Categoría: Notificaciones | Prioridad: MUST | Fuente: Auditoría QA2-06; decisión del usuario (2026-11-10, M-05); RN-045; RN-067; RN-112; RN-157
 Patrón EARS: Event-driven
-CUANDO el usuario confirma un envío, un reenvío o un reintento de aviso, el sistema DEBE guardar el intento en la bandeja interna como «sin confirmar», con su contenido, sus cuotas y sus destinatarios, **antes** de enviar la solicitud a Resend. La comprobación de que ninguna cuota incluida tiene otro intento sin confirmar del mismo tipo de aviso (RN-114) y la misma fecha efectiva de vencimiento (RN-071), y el guardado del intento, DEBEN ser atómicos. La solicitud a Resend DEBE llevar una clave de idempotencia propia de ese intento, que no se reutiliza para ningún otro intento.
-SI llega otra solicitud de envío para alguna de esas cuotas mientras el intento sigue sin confirmar, sea del mismo usuario, de otra pestaña o de otro usuario, el sistema NO DEBE enviar otro correo: DEBE rechazarla sin registrar un intento y mostrar el intento existente. Cuando Resend responde, el sistema registra el resultado (RN-137) sin modificar el contenido ni los destinatarios guardados. SI Resend acepta la solicitud pero el sistema no logra registrar la aceptación, el intento DEBE permanecer «sin confirmar» (RN-067); NO DEBE existir un correo aceptado por Resend sin su intento en la bandeja.
-✅ **Ejemplo:** Ana confirma el aviso de la cuota 2 de F001-00045 y, al mismo tiempo, Luis confirma el mismo aviso desde su sesión. Se guarda y se envía solo el intento de Ana; Luis recibe «Ya hay un envío en curso para esta cuota» y ve el intento de Ana.
-✅ **Ejemplo:** la misma solicitud de envío llega dos veces por un doble clic que el frontend no bloqueó; solo se guarda un intento y solo sale un correo.
-❌ **Contraejemplo:** dos solicitudes simultáneas de la misma cuota encuentran que no hay un aviso previo, ninguna pide confirmar «Reenviar aviso» y el contacto recibe dos correos.
-❌ **Contraejemplo:** el sistema llama a Resend y guarda el intento solo después de recibir la respuesta; al fallar el guardado, el correo llegó al contacto y la bandeja no tiene registro.
+CUANDO el usuario confirma un envío, un reenvío o un reintento de aviso, el sistema DEBE comprobar su aptitud y guardar el intento en la bandeja como EN_PROCESO, con contenido, cuotas, destinatarios y plazo de finalización del servidor, **antes** de llamar a Resend. La comprobación de que ninguna cuota incluida tiene otro intento EN_PROCESO con plazo vigente para el mismo tipo y fecha efectiva, y el guardado del intento, DEBEN ser atómicos. La solicitud lleva una clave de idempotencia propia del intento que no se reutiliza para un intento manual nuevo.
+SI llega otra solicitud mientras el plazo del intento EN_PROCESO sigue vigente, el sistema DEBE rechazarla con INTENTO_EN_PROCESO sin guardar otro intento ni llamar al proveedor. El intento termina como ENVIADO al registrar la respuesta exitosa, o como NO_ENVIADO ante rechazo, error o vencimiento del plazo (RN-066, RN-067). Ambos resultados liberan el bloqueo. Una caída del proceso o un fallo al guardar la respuesta NO DEBE dejar cuotas bloqueadas indefinidamente: al vencer el plazo sin éxito registrado, el resultado funcional es NO_ENVIADO; antes de un nuevo envío se cierra atómicamente el intento vencido y se libera su bloqueo, sin consultar ni volver a llamar a Resend. Una respuesta tardía no reabre ni cambia un intento ya cerrado. El contenido y los destinatarios históricos se conservan.
+✅ **Ejemplo:** Ana y Luis confirman al mismo tiempo; solo se guarda y se envía el intento de Ana, y Luis recibe INTENTO_EN_PROCESO.
+✅ **Ejemplo:** el proceso cae después de llamar a Resend; al vencer el plazo, la cuota vuelve a permitir un aviso manual y la siguiente confirmación cierra el intento anterior sin repetir su solicitud.
+❌ **Contraejemplo:** dos envíos simultáneos guardan intentos para las mismas cuotas, o un intento vencido bloquea permanentemente nuevos envíos.
+❌ **Contraejemplo:** se llama a Resend antes de guardar el intento o se modifica su contenido histórico al volver a intentar.
 
-**RN-159** | Categoría: Notificaciones | Prioridad: MUST | Fuente: Auditoría QA2-06; decisión del usuario (2026-11-07); RN-067; RN-113; RN-155; documentación de Resend sobre claves de idempotencia (ventana de 24 horas)
-Patrón EARS: Event-driven
-CUANDO el usuario elige «Verificar envío» en un intento sin confirmar, el sistema DEBE repetir la solicitud a Resend con la misma clave de idempotencia, el mismo contenido y los mismos destinatarios guardados en el intento, sin recalcular datos ni excluir cuotas. La verificación es una acción del usuario: el sistema NO DEBE ejecutarla automáticamente. Antes de verificar, DEBE informar al usuario que, si Resend no recibió la solicitud original, el correo se enviará en ese momento. El resultado se registra en el mismo intento (RN-137):
-1. Si Resend responde que ya había aceptado la solicitud, o la acepta en ese momento, el intento pasa a aceptado y sus cuotas muestran «Enviado» con la fecha y hora del intento. No se envía un segundo correo.
-2. Si Resend la rechaza de forma confirmada, se aplica RN-066.
-3. Si Resend informa que la solicitud original sigue en proceso, o vuelve a no responder de forma concluyente, el intento sigue sin confirmar.
-
-SI pasaron 24 horas desde el intento, que es la ventana en que Resend reconoce la clave, o si cambió alguno de los datos del correo de una cuota incluida (saldo, estado, tipo de aviso o fecha efectiva de vencimiento) o la cuota dejó de ser apta para aviso (RN-155), el sistema NO DEBE repetir la solicitud. DEBE marcar el intento como «No verificable», desbloquear esas cuotas y permitir un aviso nuevo con los datos vigentes, después de advertir al usuario que el aviso anterior pudo haber llegado al contacto. Un intento «No verificable» no crea ni quita la marca «Enviado».
-✅ **Ejemplo:** el aviso 118 quedó sin confirmar a las 09:10. A las 09:30 el usuario elige «Verificar envío»; Resend responde que ya lo había aceptado, no sale otro correo y la cuota muestra «Enviado · 2026-11-07 09:10».
-✅ **Ejemplo:** el aviso 118 quedó sin confirmar y antes de verificarlo se registra un pago parcial en la cuota. El intento pasa a «No verificable»; el usuario ve la advertencia y envía un aviso nuevo con el saldo vigente.
-❌ **Contraejemplo:** la verificación genera un correo nuevo con otro contenido, se ejecuta sola en segundo plano o envía dos días después un aviso con un saldo que ya no es el vigente.
+**RN-159** | **Retirada (2026-11-10)** | Fuente: Decisión del usuario sobre simplificación de avisos (M-05)
+Se retiran «Verificar envío», NO_VERIFICABLE, la espera de 24 horas y su advertencia. Los errores y tiempos de espera terminan como «No Enviado» y permiten un intento manual nuevo (RN-066, RN-067, RN-158). El ID se conserva para trazabilidad y no se reutiliza. La decisión anterior de QA2-06 queda como antecedente histórico.
 
 **RN-068** | **Retirada (2026-11-05)** | Fuente: Decisión del usuario (auditoría QA, A-03)
-Con el envío manual no hay reintentos automáticos ni intentos que agotar. El rechazo confirmado y el resultado sin confirmar se tratan en RN-066 y RN-067. La regla ya no aplica y su ID no se reutiliza.
+Con el envío manual no hay reintentos automáticos ni intentos que agotar. Los fallos y tiempos de espera se tratan en RN-066 y RN-067. La regla ya no aplica y su ID no se reutiliza.
 
 **RN-112** | Categoría: Notificaciones | Prioridad: MUST | Fuente: Auditoría QA A-03; Alcance M5; decisión del usuario (2026-11-05)
 Patrón EARS: Ubiquitous
-El sistema DEBE ofrecer una lista de cuotas por avisar con todas las cuotas PENDIENTES o VENCIDAS que tengan saldo, sin limitarla a la ventana de proyección del gráfico (RN-181). Para cada cuota DEBE mostrar el sentido (por cobrar o por pagar), el contacto, el número de comprobante y de cuota, la fecha efectiva de vencimiento (RN-071), el saldo con su moneda y, si existe un aviso aceptado por Resend del tipo vigente para esa fecha efectiva, la marca «Enviado» con fecha y hora del último envío aceptado. Una cuota sin esa marca muestra «Enviar aviso»; una cuota marcada muestra «Reenviar aviso» (RN-045). Si hay un intento posterior sin confirmación, el sistema DEBE indicar que se debe verificar ese intento, ofrecer «Verificar envío» (RN-159) y bloquear la acción de envío para esas cuotas (RN-067, RN-158), sin borrar una marca «Enviado» anterior. Un intento «No verificable» deja de bloquear el envío. El historial conserva los envíos anteriores, incluidos los de otras fechas efectivas. La lista NO DEBE incluir cuotas CANCELADAS (RN-041) ni cuotas de comprobantes anulados (RN-090). Las cuotas de contactos desactivados sí se incluyen (RN-130).
+El sistema DEBE ofrecer una lista de cuotas por avisar con todas las cuotas PENDIENTES o VENCIDAS que tengan saldo, sin limitarla a la ventana de proyección del gráfico (RN-181). Para cada cuota DEBE mostrar el sentido (por cobrar o por pagar), el contacto, el número de comprobante y de cuota, la fecha efectiva de vencimiento (RN-071), el saldo con su moneda y, si existe un aviso aceptado por Resend del tipo vigente para esa fecha efectiva, la marca «Enviado» con fecha y hora del último envío aceptado. Una cuota sin esa marca muestra «No Enviado» y «Enviar aviso»; una cuota marcada muestra «Enviado» y «Reenviar aviso» (RN-045). Solo mientras hay un intento EN_PROCESO con plazo vigente se muestra «Enviando…» y se bloquea otro envío para el mismo tipo y fecha efectiva (RN-158). Un fallo o tiempo de espera no borra una marca «Enviado» anterior y permite otro intento manual. Al vencer el plazo sin éxito registrado, las lecturas muestran el resultado funcional «No Enviado»; la siguiente confirmación persiste ese cierre antes de crear otro intento. El historial conserva los envíos anteriores, incluidos los de otras fechas efectivas. La lista NO DEBE incluir cuotas CANCELADAS (RN-041) ni cuotas de comprobantes anulados (RN-090). Las cuotas de contactos desactivados sí se incluyen (RN-130).
 ✅ **Ejemplo:** con fecha de cálculo 2026-11-05, la lista muestra una cuota VENCIDA el 2026-10-28, una cuota PENDIENTE que vence el 2026-11-10 y otra cuota PENDIENTE que vence el 2026-12-20, aunque el usuario tenga seleccionada una proyección gráfica de 7 días. La cuota con un aviso aceptado muestra «Enviado · 2026-11-05 09:10» y «Reenviar aviso».
 ❌ **Contraejemplo:** la lista omite la cuota PENDIENTE que vence el 2026-12-20 porque está fuera de la ventana del gráfico, o incluye una cuota CANCELADA.
 
@@ -877,7 +861,7 @@ El sistema NO DEBE enviar avisos sin confirmación de un usuario.
 ✅ **Ejemplo:** La cuota 12 vence el 2026-11-07 y no genera correo hasta que el usuario confirma.
 ❌ **Contraejemplo:** La cuota 12 genera un correo automático el 2026-11-07.
 
-**Contexto de RN-113:** RN-212 a RN-215 conservan las comprobaciones y límites del envío manual. RN-136 regula la nueva confirmación de destinatarios; RN-155, la exclusión de cuotas no aptas y el caso sin cuotas aptas; RN-159, el control de intentos sin resultado confirmado.
+**Contexto de RN-113:** RN-212 a RN-215 conservan las comprobaciones y límites del envío manual. RN-136 regula la nueva confirmación de destinatarios; RN-155, la exclusión de cuotas no aptas y el caso sin cuotas aptas; RN-066, RN-067 y RN-158, el cierre de intentos y la disponibilidad para volver a enviar.
 
 **RN-114** | Categoría: Notificaciones | Prioridad: MUST | Fuente: Auditoría QA A-03; Alcance M5; decisión del usuario (2026-11-05)
 Patrón EARS: Ubiquitous
@@ -959,14 +943,14 @@ CUANDO el usuario va a confirmar el envío, el reenvío o el reintento de un avi
 
 **RN-137** | Categoría: Notificaciones | Prioridad: MUST | Fuente: Auditoría QA A-17; decisión del usuario (2026-11-06); PRINCIPIO-006
 Patrón EARS: Ubiquitous
-El sistema DEBE conservar por cada intento de aviso su clave de idempotencia (RN-158) y el resultado de la solicitud a Resend: aceptado, rechazado de forma confirmada, sin confirmación o no verificable (RN-066, RN-067, RN-159). Si Resend acepta la solicitud y devuelve un identificador de correo, el sistema DEBE guardar ese identificador y considerar «Enviado» a cada cuota incluida en el correo para su tipo y fecha efectiva de vencimiento en ese intento. «Enviado» significa aceptado para envío por Resend, NO confirma entrega ni lectura por el destinatario. El MVP NO DEBE mostrar estados de entrega por destinatario ni procesar webhooks de entrega o rebote. La bandeja DEBE conservar el destinatario principal y las copias de cada intento aunque la configuración cambie después.
+El sistema DEBE conservar por cada intento de aviso su clave de idempotencia (RN-158) y su estado EN_PROCESO, ENVIADO o NO_ENVIADO; los intentos NO_ENVIADO conservan el motivo del fallo (RN-066, RN-067, RN-158). Si Resend devuelve una respuesta exitosa con un identificador de correo dentro del plazo vigente y se registra el resultado, el sistema DEBE guardar ese identificador y considerar «Enviado» a cada cuota incluida en el correo para su tipo y fecha efectiva de vencimiento en ese intento. «Enviado» significa aceptado para envío por Resend, NO confirma entrega ni lectura por el destinatario. El MVP NO DEBE mostrar estados de entrega por destinatario ni procesar webhooks de entrega o rebote. La bandeja DEBE conservar el destinatario principal y las copias de cada intento aunque la configuración cambie después.
 ✅ **Ejemplo:** Resend acepta el aviso 118, dirigido al contacto con copia al correo administrativo y a un supervisor; las cuotas incluidas muestran «Enviado» y la bandeja conserva el identificador devuelto y los destinatarios del intento.
 ✅ **Ejemplo:** Resend rechaza el aviso 118; ninguna de sus cuotas muestra «Enviado» y el intento rechazado permanece en el historial.
 ❌ **Contraejemplo:** el aviso figura «Enviado» antes de recibir la aceptación de Resend, o la aplicación interpreta «Enviado» como confirmación de recepción en el buzón del contacto.
 
 **RN-138** | Categoría: Notificaciones | Prioridad: MUST | Fuente: Auditoría QA A-17; decisión del usuario (2026-11-06); auditoría QA2-03 y QA2-04; decisión del usuario (2026-11-07)
 Patrón EARS: Event-driven
-CUANDO el usuario confirma «Reenviar aviso» para una cuota ya marcada «Enviado» (RN-045) o vuelve a intentar un aviso rechazado de forma confirmada (RN-066), el sistema DEBE generar un nuevo aviso manual con los datos, el tipo y los destinatarios vigentes al confirmar, aplicando otra vez RN-113, RN-135, RN-136 y RN-155. NO DEBE reenviar el contenido ni los destinatarios guardados del intento anterior. DEBE registrar el nuevo intento junto a los anteriores sin modificar su contenido ni sus destinatarios históricos. Si Resend lo acepta, la lista DEBE mostrar la fecha y hora de ese último envío; si lo rechaza, DEBE conservar la fecha del último envío aceptado, si existe, y mostrar el error (RN-066). Ni el reenvío ni el reintento son automáticos.
+CUANDO el usuario confirma «Reenviar aviso» para una cuota ya marcada «Enviado» (RN-045) o vuelve a intentar un aviso «No Enviado» por rechazo, error o tiempo de espera (RN-066, RN-067), el sistema DEBE generar un nuevo aviso manual con los datos, el tipo y los destinatarios vigentes al confirmar, aplicando otra vez RN-113, RN-135, RN-136 y RN-155. NO DEBE reenviar el contenido ni los destinatarios guardados del intento anterior. DEBE registrar el nuevo intento junto a los anteriores sin modificar su contenido ni sus destinatarios históricos. Si Resend lo acepta, la lista DEBE mostrar la fecha y hora de ese último envío; si lo rechaza, DEBE conservar la fecha del último envío aceptado, si existe, y mostrar el error (RN-066). Ni el reenvío ni el reintento son automáticos. Un intento fallido posterior conserva el último envío exitoso y su fecha; cada intento nuevo tiene otra clave de idempotencia.
 ✅ **Ejemplo:** la cuota 2 ya muestra «Enviado · 2026-11-05 09:10»; el usuario confirma el reenvío el 2026-11-06 y Resend lo acepta. La lista muestra «Enviado · 2026-11-06» y la bandeja conserva ambos intentos.
 ✅ **Ejemplo:** el supervisor que recibió copia del primer aviso ya no es apto para recibirla; el reenvío usa los destinatarios vigentes y conserva la lista histórica del primer envío.
 ✅ **Ejemplo:** Resend rechaza el aviso de la cuota 2 dirigido a "pagos@cliente.example"; después el correo del contacto cambia a "tesoreria@cliente.example". El reintento se envía a "tesoreria@cliente.example" y la bandeja conserva el intento rechazado con "pagos@cliente.example".
@@ -988,9 +972,9 @@ Una cuota es **apta para aviso** cuando está PENDIENTE o VENCIDA con saldo, su 
 
 ## UX
 
-**RN-157** | Categoría: UX | Prioridad: MUST | Fuente: Auditoría QA2-06; decisión del usuario (2026-11-07); RN-156; RN-158; RN-159
+**RN-157** | Categoría: UX | Prioridad: MUST | Fuente: Auditoría QA2-06; decisión del usuario (2026-11-07); RN-156; RN-158; decisión del usuario (2026-11-10, M-05)
 Patrón EARS: Event-driven
-CUANDO el usuario pulsa el botón que registra un cobro o un pago, «Enviar aviso», «Reenviar aviso» o «Verificar envío», el frontend DEBE deshabilitar ese botón e indicar que la solicitud está en curso hasta recibir la respuesta o agotar el tiempo de espera. Esta protección evita el doble clic, pero NO DEBE ser la única garantía: el backend DEBE impedir el efecto duplicado aunque la solicitud llegue repetida desde otra pestaña, por un reintento del navegador o por una llamada que no pase por la pantalla (RN-156 para pagos; RN-158 y RN-159 para avisos). Al volver a habilitarse tras un tiempo de espera, el botón NO DEBE iniciar una operación nueva: un pago se reintenta con la misma clave (RN-156) y un aviso sin confirmar solo ofrece «Verificar envío» (RN-112).
+CUANDO el usuario pulsa el botón que registra un cobro o un pago, «Enviar aviso» o «Reenviar aviso», el frontend DEBE deshabilitar ese botón e indicar que la solicitud está en curso hasta recibir la respuesta o agotar el tiempo de espera. El backend DEBE impedir operaciones simultáneas duplicadas aunque lleguen desde otra pestaña o usuario (RN-156 para pagos; RN-158 para avisos). Un pago se reintenta con la misma clave (RN-156). En avisos, un fallo o tiempo de espera permite otro intento manual una vez concluido el plazo del servidor; no se inicia por sí solo ni requiere verificación posterior (RN-066, RN-067).
 ✅ **Ejemplo:** Ana pulsa dos veces seguidas «Enviar aviso»; el botón queda deshabilitado con el texto «Enviando…» desde el primer clic y sale un solo correo.
 ✅ **Ejemplo:** Ana tiene abierta la misma cuota en dos pestañas y registra el mismo cobro en ambas con la misma clave; el backend devuelve el cobro original en la segunda.
 ❌ **Contraejemplo:** el botón sigue activo mientras se espera la respuesta, o el sistema confía solo en el botón deshabilitado y dos solicitudes desde pestañas distintas generan dos correos.
@@ -1164,7 +1148,7 @@ El sistema DEBE calcular el tiempo promedio de cobro global de la empresa de un 
 ✅ **Ejemplo:** para octubre de 2026, un comprobante emitido el 2026-10-01 y saldado con pago el 2026-10-31 tiene 30 días; otro emitido el 2026-08-17 y saldado el 2026-10-01 tiene 45 días; el tiempo promedio de cobro de octubre es 37.50. Un comprobante emitido en octubre y saldado el 2026-11-03 cuenta en noviembre, no en octubre.
 ❌ **Contraejemplo:** el tiempo promedio de cobro se calcula con la fecha de vencimiento 2026-10-15 en lugar de la fecha de emisión y da 14 días; filtra los comprobantes por fecha de emisión; incluye comprobantes por pagar; o se muestra como 37.5 o 38.
 
-✅ **Casos de referencia propuestos de redondeo (QA-10; pendientes de aprobación según PRINCIPIO-007):** 92 / 3 → 30.67; 91 / 3 → 30.33; 245 / 8 = 30.625 → 30.63 (empate exacto); 75 / 2 → 37.50; 0 / 1 → 0.00. El numerador es la suma de días y el denominador la cantidad de comprobantes elegibles. Sin comprobantes: «Sin datos» (RN-147).
+✅ **Casos de referencia de redondeo (QA-10; resultados esperados para las pruebas automáticas según PRINCIPIO-007, E-014; no acredita ejecución):** 92 / 3 → 30.67; 91 / 3 → 30.33; 245 / 8 = 30.625 → 30.63 (empate exacto); 75 / 2 → 37.50; 0 / 1 → 0.00. El numerador es la suma de días y el denominador la cantidad de comprobantes elegibles. Sin comprobantes: «Sin datos» (RN-147).
 ❌ **Contraejemplo de redondeo:** mostrar 30.66 para 92 / 3 por truncamiento, o 30.62 para 245 / 8 por redondeo al par.
 
 El promedio DEBE asignar el mismo peso a cada comprobante, sin ponderar por importe. Su consulta, filtro o desglose por cliente o proveedor quedan fuera del alcance. Es complementario de la cartera, excluye las deudas aún pendientes y no constituye un DSO financiero ni una medida suficiente de la salud de la cartera (decisión del usuario, 2026-11-09).
@@ -1210,7 +1194,7 @@ Los dos formatos DEBEN cumplir RN-163 en codificación, delimitador, escape, rep
 **RN-078** | Categoría: Datos | Prioridad: SHOULD | Fuente: Decisión del usuario (movimiento de cuentas); Alcance S1, S4; Auditoría QA2-21; decisión del usuario (2026-11-08)
 Patrón EARS: Ubiquitous
 Al entregar S1 o S4, la que llegue primero, el sistema DEBE mostrar, para cada cuota, un historial cronológico con la emisión del comprobante, cada edición del comprobante (RN-083), cada reprogramación (fecha anterior y fecha nueva), cada pago (ordenado por su fecha de pago, RN-088) y cada anulación de pago con su importe, el paso a VENCIDA (el día siguiente a la fecha efectiva de vencimiento) el paso a CANCELADA y la reapertura de la cuota (RN-084).
-Disponibilidad por entrega (QA2-33): S1 incluye esta vista aunque S4 no esté entregada; S4 la incluye aunque S1 no esté entregada. Sin S1 no se muestran eventos de reprogramación inexistentes. Los registros obligatorios de pagos, anulaciones y ediciones se conservan desde el MVP; diferir la vista no permite perder esos registros.
+Disponibilidad por entrega (QA2-33; trazabilidad M-06, 2026-11-10): HU-017, aprobada por decisión del usuario, cubre esta vista compartida. S1 incluye esta vista aunque S4 no esté entregada; S4 la incluye aunque S1 no esté entregada. Sin S1 no se muestran eventos de reprogramación inexistentes. Los registros obligatorios de pagos, anulaciones y ediciones se conservan desde el MVP; diferir la vista no permite perder esos registros.
 Contrato de fechas y transiciones (QA2-21):
 1. **Orden.** El historial se ordena por la fecha del hecho (fecha de pago, vencimiento efectivo, fecha de la reprogramación o de la emisión), nunca por la fecha de registro. Cada evento registrado por un usuario (pago, anulación de pago, edición, reprogramación) DEBE mostrar además su fecha y hora de registro (RN-088), solo como dato informativo.
 2. **Transiciones derivadas.** El paso a VENCIDA, a CANCELADA y la reapertura NO son eventos guardados: se calculan en cada consulta con los pagos no anulados y las reprogramaciones vigentes, según RN-084, RN-088 y la lectura coherente de RN-205 y RN-206. Tras un pago retroactivo o una anulación seguida de un reemplazo, el sistema DEBE recalcular las transiciones derivadas; una transición que una consulta anterior mostró desaparece o cambia de fecha cuando así resulta del recálculo. El sistema NO DEBE conservar ni reconstruir lo que mostró una consulta anterior.
@@ -1285,7 +1269,7 @@ El sistema DEBE conceder los permisos de cada rol exclusivamente conforme a la s
 | Registrar reprogramaciones, cuando se incorpore S1 | Sí | Sí | Sí | RN-033 a RN-036, RN-073 y RN-080 |
 | Consultar el indicador de comportamiento de pago, cuando se incorpore S3 | Sí | Sí | Sí | RN-148 y RN-261 (QA-12, 2026-11-09) |
 | Consultar panel, movimientos e historiales de negocio | Sí | Sí | Sí | Solo datos de su empresa; RN-043, RN-046 a RN-049 y RN-078 |
-| Enviar, reenviar, reintentar y verificar avisos | Sí | Sí | Sí | RN-112, RN-138 y RN-155 a RN-159 |
+| Enviar, reenviar y reintentar avisos | Sí | Sí | Sí | RN-112, RN-138, RN-155, RN-157 y RN-158 |
 | Anular pagos o comprobantes elegibles | No | Sí | Sí | RN-029 a RN-032, RN-058, RN-059, RN-061, RN-062, RN-123 y RN-124 |
 | Consultar reporte de vencimientos, cuando se incorpore S4 | Sí | Sí | Sí | RN-076 y RN-079 |
 | Exportar movimientos o reporte de vencimientos, cuando se incorpore S4 | No | Sí | Sí | RN-050, RN-051, RN-077 y RN-079 |
@@ -1411,14 +1395,14 @@ El sistema NO DEBE ofrecer el registro abierto de empresas. El sistema DEBE rese
 
 **RN-096** | Categoría: Datos | Prioridad: MUST | Fuente: Auditoría QA C-07; decisión del usuario (2026-11-05); RN-005
 Patrón EARS: Unwanted
-SI el RUC de una empresa no tiene exactamente 11 dígitos, o ya pertenece a otra empresa, el sistema NO DEBE crearla. El sistema NO DEBE consultar el RUC en SUNAT (RN-005). La comprobación de unicidad global DEBE comparar exactamente los 11 dígitos mediante referencias protegidas (RN-140, RN-217, RN-220 y RN-222), sin guardar una copia en texto plano ni convertir el RUC a número.
+SI el RUC de una empresa no tiene exactamente 11 dígitos, o ya pertenece a otra empresa, el sistema NO DEBE crearla. El sistema NO DEBE consultar el RUC en SUNAT (RN-005). La comprobación de unicidad global DEBE comparar exactamente los 11 dígitos mediante el índice único de RN-140 (RN-217 y RN-222), sin convertir el RUC a número.
 ✅ **Ejemplo:** el RUC 20601234567 se acepta para "Empresa 1 SAC".
 ❌ **Contraejemplo:** se crea una segunda empresa con el RUC 20601234567.
 ❌ **Contraejemplo:** se crea una empresa con el RUC "2060123".
 
 **RN-097** | Categoría: Seguridad | Prioridad: MUST | Fuente: Auditoría QA C-07; decisión del usuario (2026-11-05); RN-009
 Patrón EARS: Unwanted
-SI el correo de un usuario ya pertenece a otro usuario de cualquier empresa, el sistema NO DEBE crear el usuario. Cada correo pertenece a un solo usuario y a una sola empresa. La comparación DEBE usar la normalización de RN-139 y referencias protegidas (RN-140), incluidos los usuarios INVITADOS y DESACTIVADOS; cualquier cambio de correo permitido DEBE respetar la misma unicidad.
+SI el correo de un usuario ya pertenece a otro usuario de cualquier empresa, el sistema NO DEBE crear el usuario. Cada correo pertenece a un solo usuario y a una sola empresa. La comparación DEBE usar la normalización de RN-139 y el índice único de RN-140, incluidos los usuarios INVITADOS y DESACTIVADOS; cualquier cambio de correo permitido DEBE respetar la misma unicidad.
 ✅ **Ejemplo:** "ana@empresa1.example" se crea una sola vez.
 ❌ **Contraejemplo:** "ana@empresa1.example" se crea también como usuario de la empresa 2.
 
@@ -1480,7 +1464,7 @@ CUANDO un usuario ACTIVO solicita recuperar su contraseña, el sistema DEBE envi
 
 **RN-258** | Categoría: Seguridad | Prioridad: MUST | Fuente: revisión QA de HUs, QA-02; decisión del usuario (2026-11-09); RN-102; RN-103
 Patrón EARS: Event-driven
-CUANDO se solicita recuperar una contraseña, el sistema DEBE responder siempre con el mismo código HTTP, el mismo cuerpo y el mensaje «Si el correo pertenece a una cuenta activa, recibirás un enlace para restablecer tu contraseña», exista o no la cuenta y sea cual sea su estado o bloqueo. El sistema DEBE enviar el enlace de RN-102 solo a un usuario ACTIVO; NO DEBE enviar ningún correo si el correo no pertenece a un usuario, o si el usuario está INVITADO o DESACTIVADO. La cuenta se localiza con la normalización de RN-139 y las referencias protegidas de RN-140.
+CUANDO se solicita recuperar una contraseña, el sistema DEBE responder siempre con el mismo código HTTP, el mismo cuerpo y el mensaje «Si el correo pertenece a una cuenta activa, recibirás un enlace para restablecer tu contraseña», exista o no la cuenta y sea cual sea su estado o bloqueo. El sistema DEBE enviar el enlace de RN-102 solo a un usuario ACTIVO; NO DEBE enviar ningún correo si el correo no pertenece a un usuario, o si el usuario está INVITADO o DESACTIVADO. La cuenta se localiza con la normalización de RN-139 y la comparación exacta de RN-140.
 ✅ **Ejemplo:** «ana@empresa1.example» (ACTIVO) y «nadie@empresa1.example» (inexistente) reciben la misma respuesta; solo Ana recibe el correo con el enlace.
 ✅ **Ejemplo:** «luis@empresa1.example» (INVITADO) recibe la misma respuesta y ningún correo; debe usar su invitación (RN-098).
 ❌ **Contraejemplo:** la pantalla responde «Este correo no está registrado», o el API responde 404 para un correo inexistente y 200 para uno existente.
@@ -1548,7 +1532,7 @@ El sistema DEBE permitir cambiar el correo administrativo únicamente a los usua
 
 **RN-168** | Categoría: Notificaciones | Prioridad: MUST | Fuente: RN-104; PRINCIPIO-006; decisión del usuario (2026-11-06); QA2-30 (2026-11-08)
 Patrón EARS: Event-driven
-CUANDO cambia el correo administrativo, el sistema DEBE auditar el valor anterior, el nuevo, el usuario que lo cambió y la fecha y hora ISO 8601, con la protección de RN-189 y RN-014.
+CUANDO cambia el correo administrativo, el sistema DEBE auditar el valor anterior, el nuevo, el usuario que lo cambió y la fecha y hora ISO 8601, sin escribir esos valores en logs ni mensajes de error (RN-014).
 ✅ **Ejemplo:** el cambio del usuario 10 del 2026-11-08T09:00:00-05:00 conserva ambos valores protegidos en la auditoría autorizada.
 ❌ **Contraejemplo:** la auditoría del cambio solo conserva el correo nuevo y omite el anterior.
 
@@ -1632,7 +1616,7 @@ Los usuarios con cualquier rol (ADMINISTRADOR, SUPERVISOR y OPERADOR) DEBEN pode
 
 ---
 
-## Comparaciones protegidas y gestión de claves
+## Comparaciones, secretos y respaldos
 
 **RN-139** | Categoría: Seguridad | Prioridad: MUST | Fuente: Auditoría QA A-20; decisión del usuario (2026-11-06)
 Patrón EARS: Ubiquitous
@@ -1660,47 +1644,35 @@ Las comparaciones de correo y RUC de RN-139 y RN-217 DEBEN ser exactas, no coinc
 
 **Contexto de RN-139:** normalizar no equivale a validar el formato. RN-162 define la validación sintáctica del correo de contactos. RN-216 a RN-218 precisan conservación de caracteres, RUC y coincidencia exacta.
 
-**RN-140** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-003; PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06)
+**RN-140** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-003; PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); E-015 (2026-11-10)
 Patrón EARS: Ubiquitous
-El sistema DEBE realizar las comparaciones exactas de RN-127, RN-096 y RN-097 y la localización de cuentas de RN-101 y RN-102 mediante referencias HMAC-SHA-256.
-✅ **Ejemplo:** La cuenta ana@example.com se localiza por su referencia HMAC-SHA-256.
-❌ **Contraejemplo:** Se descifran todos los correos para localizar la cuenta o se usa un hash sin clave.
+El sistema DEBE realizar las comparaciones exactas de RN-127, RN-096 y RN-097 y la localización de cuentas de RN-101 y RN-102 sobre el valor normalizado de RN-139 y RN-217, y DEBE garantizar la unicidad mediante índices únicos de la base de datos.
+✅ **Ejemplo:** La cuenta ana@example.com se localiza por su correo normalizado, y el índice único impide crear otra cuenta con ' Ana@Example.com '.
+❌ **Contraejemplo:** La unicidad se comprueba solo con una consulta previa en la aplicación, sin índice único en la base de datos.
 
-**RN-219** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-003; PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-140 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Ubiquitous
-El sistema DEBE usar para HMAC-SHA-256 una clave independiente de la clave de cifrado.
-✅ **Ejemplo:** La referencia del contacto 42 usa la clave de búsqueda B1 y el cifrado usa C1.
-❌ **Contraejemplo:** La misma clave C1 se usa para cifrar y calcular HMAC.
+**RN-219** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira la clave HMAC independiente al eliminarse las referencias protegidas. Identificador reservado para trazabilidad; no establece una obligación vigente.
 
-**RN-220** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-003; PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-140 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Ubiquitous
-El sistema NO DEBE mantener copias en texto plano de correo o RUC como auxiliares de comparación o localización.
-✅ **Ejemplo:** El contacto 42 tiene valor cifrado y referencias protegidas, sin correo_normalizado legible.
-❌ **Contraejemplo:** Se guarda ana@example.com en una columna auxiliar para buscarla.
+**RN-220** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira la prohibición de copias legibles de correo y RUC: esos valores se guardan en claro (E-015). Identificador reservado para trazabilidad; no establece una obligación vigente.
 
-**RN-221** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-003; PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-140 (obligación extraída); QA2-31 (2026-11-08)
+**RN-221** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-003; PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-140 (obligación extraída); QA2-31 (2026-11-08); E-015 (2026-11-10)
 Patrón EARS: Ubiquitous
-El ámbito de las referencias de contactos DEBE incluir la empresa gestionada.
+El ámbito de unicidad del correo de contactos DEBE incluir la empresa gestionada.
 ✅ **Ejemplo:** ana@example.com puede existir como contacto en las empresas 1 y 2.
-❌ **Contraejemplo:** Una referencia sin empresa impide registrar el mismo correo en la empresa 2.
+❌ **Contraejemplo:** Un índice único sin empresa impide registrar el mismo correo en la empresa 2.
 
-**RN-222** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-003; PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-140 (obligación extraída); QA2-31 (2026-11-08)
+**RN-222** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-003; PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-140 (obligación extraída); QA2-31 (2026-11-08); E-015 (2026-11-10)
 Patrón EARS: Ubiquitous
-Las referencias de usuarios y RUC de empresas DEBEN aplicar unicidad global.
+La unicidad del correo de usuarios y del RUC de empresas DEBE ser global.
 ✅ **Ejemplo:** ana@example.com no se duplica como usuario en la empresa 2; el RUC 20601234567 no se duplica.
 ❌ **Contraejemplo:** Se acepta el mismo usuario o RUC por estar en otra empresa.
 
-**RN-223** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-003; PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-140 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Ubiquitous
-El sistema NO DEBE exponer las referencias protegidas en logs, errores ni interfaces.
-✅ **Ejemplo:** El error del contacto 42 usa un código genérico, sin su HMAC.
-❌ **Contraejemplo:** El API devuelve el HMAC del contacto 42 como si fuera información anónima.
+**RN-223** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira la prohibición de exponer referencias protegidas, que ya no existen. La exclusión de datos personales de logs y errores sigue en PRINCIPIO-005 y RN-014. Identificador reservado para trazabilidad; no establece una obligación vigente.
 
-**RN-224** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-003; PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-140 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Event-driven
-CUANDO guarda o modifica un dato cifrado, el sistema DEBE persistir atómicamente el valor y sus referencias de comparación.
-✅ **Ejemplo:** Si falla la referencia nueva del contacto 42, se conserva completo su valor anterior.
-❌ **Contraejemplo:** Se guarda el correo nuevo del contacto 42 con la referencia del correo anterior.
+**RN-224** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira la persistencia atómica de valor cifrado y referencias, que ya no existen. Identificador reservado para trazabilidad; no establece una obligación vigente.
 
 **RN-225** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-003; PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-140 (obligación extraída); QA2-31 (2026-11-08)
 Patrón EARS: Ubiquitous
@@ -1708,125 +1680,83 @@ El sistema DEBE mantener la unicidad de RN-096, RN-097 y RN-127 ante solicitudes
 ✅ **Ejemplo:** Dos altas simultáneas de ana@example.com en la empresa 1 producen un solo contacto.
 ❌ **Contraejemplo:** Una comprobación previa permite persistir ambos contactos simultáneos.
 
-**RN-226** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-003; PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-140 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: State-driven
-MIENTRAS convivan versiones de claves durante una rotación, el sistema DEBE mantener la unicidad de RN-096, RN-097 y RN-127.
-✅ **Ejemplo:** Una cuenta ana@example.com indexada con B1 impide crear otra con B2.
-❌ **Contraejemplo:** La misma cuenta se duplica porque sus referencias B1 y B2 son distintas.
+**RN-226** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira la unicidad durante la convivencia de versiones de claves de búsqueda, que ya no existen. Identificador reservado para trazabilidad; no establece una obligación vigente.
 
-**Contexto de RN-140:** las referencias son datos protegidos, no anónimos. RN-219 a RN-226 detallan sus garantías. Este conjunto no agrega pantallas ni búsquedas parciales por correo o RUC ni restringe búsquedas por nombre.
+**Contexto de RN-140 (E-015, 2026-11-10):** correo y RUC se guardan en claro; los índices únicos se definen sobre el valor normalizado (correo en minúsculas sin espacios exteriores; RUC como cadena de 11 dígitos). RN-221, RN-222 y RN-225 conservan los ámbitos y la concurrencia. Este conjunto no agrega pantallas ni búsquedas parciales por correo o RUC ni restringe búsquedas por nombre.
 
-**RN-141** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06)
+**RN-141** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); E-015 (2026-11-10)
 Patrón EARS: Ubiquitous
-Las claves DEBEN generarse con aleatoriedad criptográfica.
-✅ **Ejemplo:** La clave C1 se genera con un generador criptográfico.
-❌ **Contraejemplo:** La clave C1 se deriva de la fecha 2026-11-08 sin aleatoriedad criptográfica.
+Los secretos que genera el equipo (clave de firma de sesiones y demás secretos propios de la aplicación) DEBEN generarse con aleatoriedad criptográfica.
+✅ **Ejemplo:** La clave de firma de sesiones se genera con un generador criptográfico.
+❌ **Contraejemplo:** La clave de firma de sesiones se deriva de la fecha 2026-11-08 sin aleatoriedad criptográfica.
 
-**RN-227** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-141 (obligación extraída); QA2-31 (2026-11-08)
+**RN-227** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-141 (obligación extraída); QA2-31 (2026-11-08); E-015 (2026-11-10)
 Patrón EARS: Ubiquitous
-Las claves DEBEN custodiarse en un gestor de secretos o claves externo a PostgreSQL y al repositorio.
-✅ **Ejemplo:** La clave C1 se obtiene del gestor externo y no está en las tablas ni en archivos versionados.
-❌ **Contraejemplo:** La clave C1 se guarda en una tabla de PostgreSQL o en el repositorio.
+Los secretos (clave de firma de sesiones, clave del proveedor de correo y credenciales de base de datos) DEBEN custodiarse fuera de PostgreSQL y del repositorio.
+✅ **Ejemplo:** La clave de Resend se obtiene de las variables de entorno de Railway y no está en las tablas ni en archivos versionados.
+❌ **Contraejemplo:** La clave de Resend se guarda en una tabla de PostgreSQL o en el repositorio.
 
-**RN-228** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-141 (obligación extraída); QA2-31 (2026-11-08)
+**RN-228** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-141 (obligación extraída); QA2-31 (2026-11-08); E-015 (2026-11-10)
 Patrón EARS: Ubiquitous
-Las claves DEBEN estar separadas por ambiente.
-✅ **Ejemplo:** Producción y pruebas utilizan claves C1 y C2 distintas.
-❌ **Contraejemplo:** Pruebas reutiliza la clave C1 de producción.
+Los secretos DEBEN estar separados por ambiente.
+✅ **Ejemplo:** Producción y pruebas usan claves de firma de sesiones distintas.
+❌ **Contraejemplo:** Pruebas reutiliza la clave de firma de sesiones de producción.
 
-**RN-229** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-141 (obligación extraída); QA2-31 (2026-11-08)
+**RN-229** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira la separación de claves de cifrado y de búsqueda, que ya no existen. Identificador reservado para trazabilidad; no establece una obligación vigente.
+
+**RN-230** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-141 (obligación extraída); QA2-31 (2026-11-08); E-015 (2026-11-10)
 Patrón EARS: Ubiquitous
-Las claves DEBEN estar separadas por propósito de cifrado y búsqueda.
-✅ **Ejemplo:** Producción tiene una clave C1 de cifrado y una B1 de búsqueda.
-❌ **Contraejemplo:** Una sola clave se usa para ambos propósitos.
+El acceso a los secretos DEBE limitarse al servicio autorizado y al personal operativo expresamente habilitado según su función; los roles de negocio no conceden ese acceso.
+✅ **Ejemplo:** Un ADMINISTRADOR de la empresa 1 no accede a la clave de Resend por su rol.
+❌ **Contraejemplo:** El rol ADMINISTRADOR permite ver la clave de Resend desde la aplicación.
 
-**RN-230** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-141 (obligación extraída); QA2-31 (2026-11-08)
+**RN-231** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira la identificación de la versión de clave en cada valor cifrado. Identificador reservado para trazabilidad; no establece una obligación vigente.
+
+**RN-232** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira la auditoría del acceso y cambio de claves de datos. La administración de los secretos de Railway queda en la pregunta 26. Identificador reservado para trazabilidad; no establece una obligación vigente.
+
+**RN-233** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira junto con RN-232. Identificador reservado para trazabilidad; no establece una obligación vigente.
+
+**RN-234** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira el rechazo por falta de clave de cifrado. Identificador reservado para trazabilidad; no establece una obligación vigente.
+
+**Contexto de RN-141 (E-015, 2026-11-10):** RN-141, RN-227, RN-228 y RN-230 cubren la generación, custodia, separación por ambiente y acceso de los secretos. Quién los administra y el procedimiento ante incidentes siguen pendientes en la pregunta 26.
+
+**RN-142** | **Retirada (2026-11-10)** | Fuente: decisión del usuario sobre M-08 del reporte de backlog; E-015
+Se retira la rotación de claves de cifrado y búsqueda, que ya no existen. Identificador reservado para trazabilidad; no establece una obligación vigente.
+
+**RN-235** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira la lectura con versiones anteriores de clave durante una rotación. Identificador reservado para trazabilidad; no establece una obligación vigente.
+
+**RN-236** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira la migración de datos y referencias al rotar claves. Identificador reservado para trazabilidad; no establece una obligación vigente.
+
+**RN-237** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira el procedimiento de responsable, plazo y límites de uso de claves de datos. Identificador reservado para trazabilidad; no establece una obligación vigente.
+
+**RN-238** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira la rotación anticipada por sospecha de compromiso de clave de datos. La respuesta ante incidentes de seguridad queda en la pregunta 26. Identificador reservado para trazabilidad; no establece una obligación vigente.
+
+**RN-239** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira la conservación de claves anteriores para leer respaldos, que ya no dependen de claves de la aplicación. Identificador reservado para trazabilidad; no establece una obligación vigente.
+
+**RN-240** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-142 (obligación extraída); QA2-31 (2026-11-08); E-015 (2026-11-10); D.S. 016-2024-JUS, art. 51
 Patrón EARS: Ubiquitous
-El acceso a uso o administración de claves DEBE limitarse al servicio autorizado y al personal operativo expresamente habilitado según su función; los roles de negocio no conceden ese acceso.
-✅ **Ejemplo:** Un ADMINISTRADOR de la empresa 1 no accede a C1 por su rol.
-❌ **Contraejemplo:** El rol ADMINISTRADOR permite descargar C1 desde la aplicación.
+Las pruebas de recuperación DEBEN restaurar un respaldo en una base de datos aislada y verificar la integridad de los datos, el inicio de sesión de un usuario y la unicidad de RN-140 antes de darlo por válido.
+✅ **Ejemplo:** Se restaura el respaldo semanal en una base aislada, un usuario de prueba inicia sesión y el índice único rechaza un correo duplicado.
+❌ **Contraejemplo:** La prueba solo comprueba que PostgreSQL arranca, sin verificar datos, acceso ni unicidad.
 
-**RN-231** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-141 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Ubiquitous
-Cada valor cifrado y referencia DEBE identificar la versión de clave correspondiente.
-✅ **Ejemplo:** El correo cifrado del contacto 42 indica C2 y su referencia indica B2.
-❌ **Contraejemplo:** El contacto 42 depende de adivinar la clave porque no guarda su versión.
+**RN-241** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira la restricción de uso de una versión de clave comprometida. Identificador reservado para trazabilidad; no establece una obligación vigente.
 
-**RN-232** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-141 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Event-driven
-CUANDO ocurre un acceso administrativo o cambio de claves, el sistema DEBE auditarlo.
-✅ **Ejemplo:** La rotación C1 a C2 registra el acceso y el cambio autorizados.
-❌ **Contraejemplo:** Se cambia C1 por C2 sin registro de auditoría.
+**RN-242** | **Retirada (2026-11-10)** | Fuente: decisión del usuario; E-015
+Se retira la recuperación de datos dependientes de una clave comprometida. Identificador reservado para trazabilidad; no establece una obligación vigente.
 
-**RN-233** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-141 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Ubiquitous
-La auditoría de claves NO DEBE registrar secretos ni datos personales.
-✅ **Ejemplo:** El registro de rotación C1 a C2 contiene referencias de versiones, sin el material secreto.
-❌ **Contraejemplo:** El registro incluye la clave C2 o el correo personal del contacto 42.
-
-**RN-234** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-141 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Unwanted
-SI no está disponible una clave necesaria, el sistema DEBE rechazar la operación dependiente sin persistir texto plano.
-✅ **Ejemplo:** Falta C2 y se rechaza el cambio del correo del contacto 42 sin guardarlo legible.
-❌ **Contraejemplo:** Al faltar C2 se guarda ana@example.com en texto plano para completar la operación.
-
-**Contexto de RN-141:** RN-227 a RN-234 separan custodia, separación, autorización, versiones, auditoría y rechazo por falta de clave. Los responsables y controles operativos aún pendientes en el diseño de seguridad no se consideran resueltos por esta división.
-
-**RN-142** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06)
-Patrón EARS: Event-driven
-CUANDO se rota una clave, el sistema DEBE activar la nueva versión para escrituras.
-✅ **Ejemplo:** Tras activar C2, un nuevo correo se cifra con C2.
-❌ **Contraejemplo:** Después de activar C2 se sigue escribiendo con C1 como versión ordinaria.
-
-**RN-235** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-142 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: State-driven
-MIENTRAS existan valores que necesiten versiones anteriores durante una rotación, el sistema DEBE conservar su lectura con las versiones correspondientes.
-✅ **Ejemplo:** Tras activar C2, el contacto 42 todavía cifrado con C1 sigue siendo legible para un uso autorizado.
-❌ **Contraejemplo:** Activar C2 vuelve inaccesible el contacto 42 antes de migrarlo.
-
-**RN-236** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-142 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Event-driven
-CUANDO rota una clave, el sistema DEBE migrar los datos y referencias sin perder unicidad ni acceso.
-✅ **Ejemplo:** La migración B1 a B2 conserva una sola cuenta ana@example.com accesible.
-❌ **Contraejemplo:** La migración deja una cuenta inaccesible o admite una segunda ana@example.com.
-
-**RN-237** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-142 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Ubiquitous
-Antes de producción, el procedimiento operativo DEBE fijar responsable, plazo de rotación y límites de uso de claves.
-✅ **Ejemplo:** El procedimiento asigna responsable operativo, rotación máxima de 12 meses y límite de 2³² cifrados por versión conforme al diseño.
-❌ **Contraejemplo:** Se habilita producción sin responsable o sin plazo o límite de uso definidos.
-
-**RN-238** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-142 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Event-driven
-CUANDO existe sospecha de compromiso de una clave, el procedimiento operativo DEBE activar su rotación anticipada.
-✅ **Ejemplo:** La sospecha sobre C1 activa su sustitución antes del plazo ordinario de 12 meses.
-❌ **Contraejemplo:** Se espera al plazo ordinario de 12 meses pese a sospechar el compromiso de C1.
-
-**RN-239** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-142 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: State-driven
-MIENTRAS existan datos o respaldos retenidos que requieran una clave anterior, esta NO DEBE destruirse, salvo migración o reemplazo verificados de esos datos o respaldos.
-✅ **Ejemplo:** Un respaldo cifrado con C1 conserva su clave bajo acceso controlado hasta dejar de necesitarla.
-❌ **Contraejemplo:** Se destruye C1 al activar C2 aunque un respaldo retenido todavía la requiere.
-
-**RN-240** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-142 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Ubiquitous
-Las pruebas de recuperación DEBEN comprobar conjuntamente datos, claves y reconstrucción de referencias.
-✅ **Ejemplo:** Se restaura un respaldo C1, se reconstruyen referencias B2 y se verifica acceso y unicidad antes de abrir el servicio.
-❌ **Contraejemplo:** La prueba solo comprueba que PostgreSQL arranca, sin descifrar datos ni reconstruir referencias.
-
-**RN-241** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-142 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Event-driven
-CUANDO existe compromiso de una clave, el procedimiento operativo DEBE restringir de inmediato el uso de la versión afectada.
-✅ **Ejemplo:** C1 comprometida deja de estar disponible para uso ordinario al conocerse el incidente.
-❌ **Contraejemplo:** C1 sigue disponible para uso ordinario hasta la siguiente rotación anual.
-
-**RN-242** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); RN-142 (obligación extraída); QA2-31 (2026-11-08)
-Patrón EARS: Event-driven
-CUANDO existe compromiso de una clave, el procedimiento operativo DEBE preservar la recuperación de los datos dependientes mediante acceso controlado.
-✅ **Ejemplo:** La recuperación autorizada de un respaldo C1 usa acceso restringido mientras se sustituye la clave.
-❌ **Contraejemplo:** Se destruye C1 sin migración y se pierde la recuperación del respaldo retenido.
-
-**Contexto de RN-142:** RN-235 a RN-242 precisan continuidad, migración, procedimiento, retención, recuperación e incidente. Los parámetros operativos existentes siguen en `otros/06-diseno-seguridad-datos.md`; no se fijan valores nuevos por QA2-31.
+**Contexto de RN-142 (E-015, 2026-11-10):** se mantiene solo RN-240. El reglamento exige respaldos con frecuencia mínima semanal y verificación de su integridad (art. 51); en la nube los realiza Neon dentro de la ventana de su plan, y en la modalidad local los responsables se definen en la pregunta 41.
 
 **RN-143** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; Auditoría QA A-20; decisión del usuario (2026-11-06); Auditoría QA2-14; decisión del usuario (2026-11-07)
 Patrón EARS: Ubiquitous
@@ -1901,6 +1831,42 @@ SI se rechaza la definición o recuperación de una contraseña, el sistema NO D
 ❌ **Contraejemplo:** Rechazar 'abcde' consume el enlace o activa al usuario sin contraseña válida.
 
 **Contexto de RN-143:** RN-243 a RN-253 separan verificación, renovación y contrato de entrada de contraseñas. La anticipación opcional en interfaz de RN-252 no permite omitir la validación del servidor. El diseño de seguridad mantiene el algoritmo y parámetros ya decididos.
+
+---
+
+## Tokens y trazabilidad de accesos
+
+**RN-262** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-004; E-015 (2026-11-10); decisión del usuario
+Patrón EARS: Ubiquitous
+El sistema DEBE guardar los tokens de invitación y de recuperación de contraseña solo como hash, y DEBE validarlos comparando el hash del token recibido.
+✅ **Ejemplo:** La invitación de Luis guarda el hash SHA-256 de su token; el valor original existe solo en el enlace enviado.
+❌ **Contraejemplo:** El token se guarda legible y una copia de la base de datos permite activar cuentas ajenas.
+
+**RN-263** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-005; E-015 (2026-11-10); D.S. 016-2024-JUS, art. 46
+Patrón EARS: Event-driven
+CUANDO un usuario inicia o cierra sesión, o consulta, crea, modifica, anula, elimina o exporta contactos, comprobantes, cuotas, pagos, avisos o usuarios, el sistema DEBE generar un registro de interacción lógica con el usuario, la empresa, la acción, el tipo y el identificador del registro afectado, y la fecha y hora. En las consultas de listados, búsquedas, paneles y reportes, el registro identifica el recurso consultado sin enumerar los registros mostrados.
+✅ **Ejemplo:** Ana abre el contacto 42 y se registra `accion=CONSULTA entidad=contacto entidad_id=42 usuario_id=7 empresa_id=3`; al exportar el reporte de movimientos se registra `accion=EXPORTACION recurso=reporte_movimientos`.
+❌ **Contraejemplo:** La exportación del reporte de movimientos no deja registro de quién la hizo ni cuándo.
+
+**RN-264** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-005; E-015 (2026-11-10)
+Patrón EARS: Ubiquitous
+El registro de interacción lógica NO DEBE contener datos personales, importes, criterios de búsqueda ni textos libres.
+✅ **Ejemplo:** La búsqueda de contactos registra `accion=CONSULTA recurso=busqueda_contactos usuario_id=7`, sin el término buscado.
+❌ **Contraejemplo:** El registro guarda el término de búsqueda «ANA PEREZ» o el correo del contacto.
+
+**RN-265** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-005; E-015 (2026-11-10); D.S. 016-2024-JUS, art. 46
+Patrón EARS: Ubiquitous
+Los registros de interacción lógica DEBEN conservarse al menos dos años desde su generación, NO DEBEN modificarse ni eliminarse desde la aplicación para ningún rol y DEBEN estar disponibles de inmediato para el personal operativo de VenceYa.
+✅ **Ejemplo:** En noviembre de 2028 el equipo consulta los accesos al contacto 42 registrados en noviembre de 2026.
+❌ **Contraejemplo:** Un ADMINISTRADOR elimina desde la aplicación los registros de acceso de su empresa.
+
+**RN-266** | Categoría: Seguridad | Prioridad: MUST | Fuente: PRINCIPIO-005; E-015 (2026-11-10); D.S. 016-2024-JUS, art. 46
+Patrón EARS: Unwanted
+SI no se puede guardar el registro de interacción lógica de una operación, el sistema NO DEBE completarla: los cambios se revierten en la misma transacción y las consultas o exportaciones no entregan datos.
+✅ **Ejemplo:** Falla la escritura del registro al exportar movimientos; la exportación responde con error y no entrega el archivo.
+❌ **Contraejemplo:** Se registra el pago 1001 aunque falló su registro de interacción lógica.
+
+**Contexto de RN-263 a RN-266 (E-015, 2026-11-10):** desarrollan la trazabilidad de PRINCIPIO-005 conforme al art. 46 del D.S. 016-2024-JUS. Son independientes de los eventos de negocio de `auditoria_eventos` y del historial de ediciones. Como no contienen datos personales, la baja contractual (RN-152) no los elimina antes de cumplir los dos años; esta conservación se confirma en la revisión legal (pregunta 31). La consulta de estos registros por el equipo no es una funcionalidad de la aplicación.
 
 ---
 

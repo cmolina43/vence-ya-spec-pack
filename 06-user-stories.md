@@ -10,7 +10,7 @@
 
 ## Criterios de esta versión
 
-- **Enfoque (decisión del usuario, opción b):** 10 HUs Must que cubren el MVP completo (M1 a M6) y 2 HUs Should de alto valor y bajo acoplamiento (S1 y S5). Total: 12 HUs.
+- **Enfoque (decisión del usuario, opción b):** 10 HUs Must que cubren el MVP completo (M1 a M6) y 3 HUs Should (HU-011, HU-012 y HU-017). Total: 13 HUs aprobadas. Decisión M-06 del usuario (2026-11-10): se aprueba HU-017 como historial compartido de S1 y S4, sin incorporar el resto de S4 ni adelantarlo al MVP.
 - **Prioridad:** MoSCoW según `02-alcance.md`. No se incluyen HUs *Won't*: lo que está fuera de alcance (O1 a O19) no genera historias.
 - **Trazabilidad:** cada HU indica su funcionalidad de alcance (M/S) y las reglas RN que la sustentan. Las HUs Must se trazan a reglas MUST.
 - **Convenciones de los criterios:**
@@ -27,10 +27,12 @@ No se redactan como HUs porque no son capacidades que un usuario solicite, sino 
 | Requisito | Reglas / principios |
 |---|---|
 | Aislamiento por empresa: toda consulta filtra por la empresa del usuario autenticado; un registro de otra empresa responde HTTP 404 igual que uno inexistente. | PRINCIPIO-003; RN-007, RN-008, RN-052 |
-| Cifrado AES-256-GCM de correo, teléfono y dirección de contactos, RUC y correo administrativo de empresas y correo de acceso de usuarios [NUEVO: el correo de acceso faltaba según PRINCIPIO-004 y RN-011], y de sus copias en historiales, destinatarios de avisos [NUEVO: los destinatarios faltaban según PRINCIPIO-004] y auditorías; comparaciones exactas con HMAC-SHA-256; gestión de claves. | PRINCIPIO-004; RN-011, RN-139 a RN-143, RN-189 a RN-192, RN-216 a RN-242 |
+| Protección de datos (E-015): TLS, contraseñas con hash, tokens de invitación y recuperación guardados solo como hash, secretos fuera de la base y del repositorio, sin cifrado por campo; unicidad de correo y RUC con índices únicos sobre el valor normalizado. | PRINCIPIO-004; RN-139 a RN-141, RN-143, RN-216 a RN-218, RN-221, RN-222, RN-225, RN-227, RN-228, RN-230, RN-240, RN-262 |
+| Trazabilidad de accesos (art. 46 del D.S. 016-2024-JUS): inicio y cierre de sesión y cada consulta, alta, edición, anulación, eliminación o exportación de datos personales generan un registro sin datos personales, conservado al menos dos años; si el registro falla, la operación no se completa. | PRINCIPIO-005; RN-263 a RN-266 |
 | Sin datos personales en logs, errores, prompts ni fixtures; diagnóstico con eventos, IDs y códigos. | PRINCIPIO-005; RN-014, RN-193 a RN-197 |
 | Cada operación se guarda como unidad (todo o nada) y sus condiciones se evalúan con el estado vigente al guardar. | RN-160 |
 | La fecha de cálculo se inyecta como parámetro; las funciones de negocio no leen el reloj. | PRINCIPIO-007; RN-023, RN-198 a RN-204 |
+| Los cálculos implementados cuentan con pruebas automáticas de referencia trazables a reglas, ejemplos y resultados esperados, y cobertura mínima del 80 % en sus módulos de dominio. La aceptación humana se realiza sobre el aplicativo por historia o entrega, sin aprobación separada de cada caso de referencia; las ambigüedades de negocio no resueltas se consultan a la persona encargada del proyecto. | PRINCIPIO-007; E-014 |
 | Pantallas WCAG 2.2 AA, navegables por teclado y responsive. | PRINCIPIO-010 |
 | Conservación: no se eliminan comprobantes, cuotas, pagos, anulaciones, usuarios ni historiales mientras el contrato esté vigente. | PRINCIPIO-006; RN-028, RN-150 |
 | TLS 1.2 o superior. | RN-012 |
@@ -53,6 +55,7 @@ No se redactan como HUs porque no son capacidades que un usuario solicite, sino 
 | HU-010 | Enviar avisos de vencimiento por correo | E5 Avisos de vencimiento | Must | M5 |
 | HU-011 | Reprogramar una cuota con promesa de pago | E3 Pagos y correcciones | Should | S1 |
 | HU-012 | Consultar el tiempo promedio de cobro del mes | E4 Panel de cartera | Should | S5 |
+| HU-017 | Consultar el historial cronológico de una cuota | E3 Pagos y correcciones | Should | S1 / S4 (primera entrega) |
 
 ---
 
@@ -92,7 +95,7 @@ No se redactan como HUs porque no son capacidades que un usuario solicite, sino 
 
 **Notas:**
 - Es un procedimiento interno del equipo de VenceYa, no forma parte de las pantallas de los roles de la empresa (RN-095). El mismo procedimiento permite reenviar la invitación del primer administrador únicamente mientras este siga INVITADO y la empresa no tenga ningún ADMINISTRADOR ACTIVO; ambas condiciones se comprueban al ejecutar el reenvío. No reactiva usuarios DESACTIVADOS. Si existe un ADMINISTRADOR ACTIVO, la gestión corresponde a los administradores de la empresa mediante HU-003 (RN-095, RN-098, RN-099, RN-100, RN-160).
-- El RUC no se valida contra SUNAT (RN-005, O1) y su unicidad se comprueba con referencias protegidas, sin texto plano (RN-096, RN-140).
+- El RUC no se valida contra SUNAT (RN-005, O1) y su unicidad se comprueba con un índice único sobre los 11 dígitos (RN-096, RN-140).
 - El autoregistro de empresas está fuera de alcance (O15).
 - [NUEVO] Candidata a división en sprint: (a) alta de empresa y primer administrador, (b) reenvío interno de la invitación del primer administrador.
 
@@ -124,8 +127,9 @@ No se redactan como HUs porque no son capacidades que un usuario solicite, sino 
 - [NUEVO] (borde, QA-02) DADO QUE Ana solicitó la recuperación a las 10:00 y otra vez a las 10:20, CUANDO usa el enlace de las 10:00, ENTONCES el sistema lo rechaza; el enlace de las 10:20 es válido hasta las 11:20.
 - [NUEVO] (borde, QA-02) DADO QUE Ana recibió enlaces de recuperación a las 10:00, 10:10 y 10:20, CUANDO vuelve a solicitarlo a las 10:30, ENTONCES recibe el mismo mensaje pero ningún correo y el enlace de las 10:20 sigue vigente; una solicitud a las 11:00:00 sí envía un enlace nuevo.
 - [NUEVO] (negativo) DADO QUE luis@andina.example está INVITADO y marta@andina.example está DESACTIVADA con una contraseña definida antes, CUANDO cada uno ingresa su correo y una contraseña, ENTONCES el sistema no inicia sesión para ninguno de los dos y no crea ninguna sesión.
+- [NUEVO] (negativo, terminación contractual, C-03) DADO QUE la empresa de ana@andina.example tiene terminación efectiva el 2027-03-31 a las 18:00 (America/Lima) y Ana está ACTIVA, CUANDO a las 18:00:00 inicia sesión con su contraseña correcta, usa una sesión abierta o canjea un enlace de invitación o de recuperación, ENTONCES el sistema lo rechaza informando que el contrato terminó, cierra sus sesiones y no consume el enlace; a las 17:59:59 las mismas acciones funcionan. Con una contraseña incorrecta, el mensaje es el mismo que para cualquier credencial inválida (RN-103), y una solicitud de recuperación recibe la respuesta neutra sin enviar el correo.
 
-**Reglas de negocio relacionadas:** RN-098, RN-101, RN-102, RN-103, RN-149, RN-139, RN-140, RN-143, RN-243, RN-244, RN-245, RN-246, RN-247, RN-248, RN-249, RN-250, RN-251, RN-252, RN-253. Agregadas por QA [NUEVO]: RN-258, RN-259, RN-260.
+**Reglas de negocio relacionadas:** RN-098, RN-101, RN-102, RN-103, RN-149, RN-139, RN-140, RN-143, RN-243, RN-244, RN-245, RN-246, RN-247, RN-248, RN-249, RN-250, RN-251, RN-252, RN-253. Agregadas por QA [NUEVO]: RN-258, RN-259, RN-260, RN-152 (solo el bloqueo desde la terminación efectiva; C-03).
 
 **Notas:**
 - La duración del bloqueo (15 minutos) es un parámetro de instalación que administra solo el personal operativo; ningún rol de empresa la cambia (RN-103).
@@ -198,9 +202,10 @@ No se redactan como HUs porque no son capacidades que un usuario solicite, sino 
 **Reglas de negocio relacionadas:** RN-126, RN-127, RN-128, RN-129, RN-130, RN-044, RN-139, RN-162, RN-006, RN-254, RN-255, RN-256. Agregadas por QA [NUEVO]: RN-160.
 
 **Notas:**
-- [NUEVO] Pendiente (QA-13, pregunta 51): falta definir si eliminar un contacto sin comprobantes elimina también su historial de ediciones (RN-129, RN-130), dado que la conservación de historiales es un requisito transversal.
+- [NUEVO] Resuelto (QA-13, pregunta 51, 2026-11-10): eliminar un contacto sin comprobantes conserva sin cambios su historial de ediciones (RN-129, RN-130, RN-150, RN-255); no se recupera en un contacto nuevo que reutilice el correo.
+- [NUEVO] (positivo, historial) DADO QUE el contacto 42 sin comprobantes tiene dos ediciones de correo, CUANDO un usuario confirma su eliminación, ENTONCES no queda el registro del contacto, el mismo correo se acepta en un contacto nuevo y el historial del contacto 42 se conserva sin cambios.
 - El contacto no tiene tipo fijo: es cliente si tiene comprobantes por cobrar y proveedor si tiene comprobantes por pagar; puede ser ambos (RN-128).
-- Desactivar un contacto no equivale a atender una solicitud de eliminación de datos personales; esa solicitud sigue un procedimiento interno separado (RN-151, RN-254). No existe seudonimización (RN-256).
+- Desactivar un contacto no equivale a atender una solicitud de eliminación de datos personales; el equipo de VenceYa gestiona esa solicitud internamente, en coordinación con la empresa cliente, fuera del alcance funcional y del backlog de desarrollo (RN-151, RN-254; M-11). No existe seudonimización (RN-256).
 - Nombre del contacto: 1 a 250 caracteres; letras, dígitos, espacios y los signos «.», «,», «&», «-», «'», «(», «)» y «/», con al menos una letra (RN-162; [ACTUALIZADO] por la decisión QA-05 del 2026-11-09, antes «solo letras y espacios»). Correo: 1 a 250 caracteres.
 
 ---
@@ -333,7 +338,7 @@ No se redactan como HUs porque no son capacidades que un usuario solicite, sino 
 - [NUEVO] (negativo, aislamiento) DADO QUE la cuota 900 pertenece a otra empresa, CUANDO el usuario intenta reprogramarla al 2026-11-20, ENTONCES el sistema responde HTTP 404 igual que para una cuota inexistente y no crea ninguna promesa.
 - [NUEVO] (negativo) DADO QUE una cuota con saldo tiene fecha efectiva 2026-11-10, CUANDO se envía directamente al API una reprogramación con la fecha inexistente «2026-02-30» o con «20/11/2026», ENTONCES el sistema la rechaza informando el motivo y no crea promesa ni marca.
 
-**Reglas de negocio relacionadas:** RN-033, RN-034, RN-035, RN-036, RN-045, RN-071, RN-072, RN-073, RN-074, RN-080, RN-085, RN-118, RN-160. Agregadas por QA [NUEVO]: RN-021, RN-008, RN-162, RN-198.
+**Reglas de negocio relacionadas:** RN-033, RN-034, RN-035, RN-036, RN-045, RN-071, RN-072, RN-073, RN-074, RN-078, RN-080, RN-085, RN-118, RN-160. Agregadas por QA [NUEVO]: RN-021, RN-008, RN-162, RN-198.
 
 **Notas:**
 - Funcionalidad posterior al MVP (alcance §3.1). Al entregarla se activan las validaciones MUST RN-080 y RN-118, la visibilidad de promesas de RN-036 y el historial cronológico de RN-078 (si S4 no lo entregó antes).
@@ -401,7 +406,7 @@ No se redactan como HUs porque no son capacidades que un usuario solicite, sino 
 - [NUEVO] (borde) DADO QUE los comprobantes elegibles de octubre de 2026 suman 92 días entre emisión y cobro total y son 3, CUANDO se calcula el tiempo promedio de cobro con fecha de cálculo 2026-11-09, ENTONCES la tarjeta muestra «Tiempo promedio de cobro de comprobantes saldados: 30.67 días»; con 91 días entre 3, muestra «Tiempo promedio de cobro de comprobantes saldados: 30.33 días».
 - [NUEVO] (borde) DADO QUE los 8 comprobantes elegibles de octubre de 2026 suman 245 días, CUANDO se calcula el tiempo promedio de cobro con fecha de cálculo 2026-11-09, ENTONCES el promedio exacto 30.625 se muestra como «Tiempo promedio de cobro de comprobantes saldados: 30.63 días».
 
-Los casos de redondeo de RN-053 y estos criterios están pendientes de aprobación como casos de referencia según PRINCIPIO-007. El método ya está decidido; no se acredita ejecución de pruebas.
+Los casos de redondeo de RN-053 y estos criterios definen resultados esperados para las pruebas automáticas de referencia según PRINCIPIO-007, E-014, sin aprobación humana específica. El método ya está decidido; no se acredita ejecución de pruebas.
 
 **Criterios de selección y alcance (QA-11, decisión del usuario del 2026-11-09):**
 
@@ -414,13 +419,13 @@ Los casos de redondeo de RN-053 y estos criterios están pendientes de aprobaci�
 - [NUEVO] (negativo, aislamiento) DADO QUE la empresa tiene en octubre de 2026 un único comprobante elegible de 30 días y otra empresa tiene uno de 90 días, CUANDO se calcula el tiempo promedio de cobro de octubre, ENTONCES la tarjeta muestra 30.00 días: los comprobantes de la otra empresa no participan.
 - [NUEVO] (negativo) DADO QUE se envía directamente al backend la consulta del mes «2026-13» o «octubre», CUANDO el servidor la recibe, ENTONCES la rechaza por mes inválido y no devuelve ningún valor.
 
-**Alcance e interpretación:** la tarjeta se titula «Tiempo promedio de cobro de comprobantes saldados» y complementa los indicadores de cartera. Solo ofrece el promedio global de la empresa; la consulta por cliente o proveedor y el DSO financiero quedan fuera del proyecto. Los meses terminados se recalculan conforme a RN-088. Los nuevos casos de referencia están sujetos a aprobación según PRINCIPIO-007.
+**Alcance e interpretación:** la tarjeta se titula «Tiempo promedio de cobro de comprobantes saldados» y complementa los indicadores de cartera. Solo ofrece el promedio global de la empresa; la consulta por cliente o proveedor y el DSO financiero quedan fuera del proyecto. Los meses terminados se recalculan conforme a RN-088. Los nuevos casos de referencia se implementan como pruebas automáticas trazables a las reglas y criterios correspondientes, sin aprobación humana específica (PRINCIPIO-007, E-014).
 
 **Reglas de negocio relacionadas:** RN-053, RN-147, RN-025, RN-088, RN-090, RN-198, RN-205, RN-206. Agregadas por QA [NUEVO]: RN-084, RN-089, RN-008.
 
 **Notas:**
 - Funcionalidad posterior al MVP; puede entregarse sin S1, S3 ni S4 y no forma parte del reporte de vencimientos (alcance §3.1).
-- Cálculo puro, determinista, con casos de referencia aprobados y cobertura mínima de 80 % (PRINCIPIO-007, E-012).
+- Cálculo puro, determinista, con pruebas automáticas de referencia trazables a las reglas de negocio y cobertura mínima de 80 % (PRINCIPIO-007, E-012, E-014).
 
 ---
 
@@ -466,14 +471,14 @@ Los casos de redondeo de RN-053 y estos criterios están pendientes de aprobaci�
 - DADO QUE existen cuotas PENDIENTES y VENCIDAS con saldo, incluida una que vence dentro de 45 días, una CANCELADA y otra de un comprobante anulado, CUANDO el usuario abre la lista de cuotas por avisar, ENTONCES ve todas las PENDIENTES y VENCIDAS con saldo (incluida la de 45 días, aunque la ventana del gráfico sea de 7), con sentido, contacto, número de comprobante y de cuota, fecha efectiva de vencimiento y saldo con moneda, ordenadas como en el listado del panel; la CANCELADA y la anulada no aparecen.
 - DADO QUE el usuario selecciona las cuotas 1 y 2 de F001-00045 del cliente cliente@distlima.example, ambas por cobrar y vencidas, y escribe el comentario «Favor confirmar fecha de pago», CUANDO pulsa «Enviar aviso», ENTONCES el sistema le muestra «Para: cliente@distlima.example · Copia: admin@andina.example, jefe.cobranzas@andina.example», sin permitirle modificar las copias.
 - DADO QUE el usuario confirma ese envío y Resend lo acepta, CUANDO termina la solicitud, ENTONCES se envía un solo correo con la maqueta «por cobrar vencida» que agrupa las 2 cuotas, con dirección de respuesta admin@andina.example; ambas cuotas quedan marcadas «Enviado» con la fecha y hora del envío, se muestra «Aviso enviado» y la bandeja interna registra el intento con fecha y hora ISO 8601, usuario, contacto, cuotas, tipo, comentario, destinatarios y resultado.
-- DADO QUE la cuota 2 quedó CANCELADA por un pago registrado entre la selección y la confirmación, CUANDO el usuario confirma el envío, ENTONCES el sistema recalcula la aptitud y envía el correo solo con la cuota 1.
+- DADO QUE la cuota 2 quedó CANCELADA por un pago registrado entre la selección y la confirmación, CUANDO el usuario confirma el envío, ENTONCES el sistema recalcula la aptitud y envía el correo solo con la cuota 1, devuelve la cuota 2 excluida con motivo CUOTA_CANCELADA y no cambia los intentos históricos.
 - DADO QUE el correo administrativo cambió después de que el usuario vio los destinatarios, CUANDO confirma el envío, ENTONCES el sistema no envía el correo y le muestra los destinatarios vigentes para que confirme otra vez.
 - DADO QUE la cuota 2 tiene un aviso «Enviado» el 2026-11-05 por Ana para la misma fecha efectiva y el mismo tipo, CUANDO el usuario la selecciona el 2026-11-07, ENTONCES el sistema muestra «Último aviso: 2026-11-05, Ana» y solo envía tras confirmar «Reenviar aviso».
-- DADO QUE Resend rechaza el envío de forma confirmada, CUANDO termina la solicitud, ENTONCES las cuotas no se marcan «Enviado», no se pierde una marca anterior, el intento queda en la bandeja y se muestra un error persistente con la acción de volver a intentar; el sistema no reintenta automáticamente.
-- DADO QUE la solicitud a Resend agota el tiempo de espera, CUANDO termina, ENTONCES el sistema muestra «No se pudo confirmar el envío», no marca las cuotas, bloquea un nuevo envío de esas cuotas incluso para otro usuario y ofrece «Verificar envío», que repite la solicitud con la misma clave de idempotencia y el mismo contenido sin generar un segundo correo.
+- DADO QUE Resend rechaza el envío o falla la comunicación, CUANDO termina la solicitud, ENTONCES el intento queda NO_ENVIADO con motivo, las cuotas sin aviso exitoso vigente muestran «No Enviado» y «Enviar aviso», no se pierde una marca anterior, el intento queda en la bandeja y se muestra un error persistente con la acción de volver a intentar manualmente; el sistema no reintenta automáticamente.
+- DADO QUE la solicitud a Resend agota el plazo de 10 segundos del servidor, CUANDO termina, ENTONCES el intento queda NO_ENVIADO con motivo TIEMPO_ESPERA, se liberan las cuotas y se permite otro intento manual con datos y destinatarios vigentes, sin verificación, espera de 24 horas ni advertencia adicional; no se crea ni elimina una marca «Enviado» anterior.
 - DADO QUE el usuario escribe un comentario de 501 caracteres, CUANDO intenta enviar, ENTONCES el sistema lo rechaza; un comentario de 500 caracteres se acepta y uno de solo espacios se trata como sin comentario.
 - [NUEVO] (borde, lista vacía) DADO QUE la empresa no tiene cuotas PENDIENTES ni VENCIDAS con saldo, CUANDO el usuario abre la lista de cuotas por avisar, ENTONCES la lista no muestra filas y no hay cuotas para seleccionar ni enviar.
-- [NUEVO] (borde) DADO QUE el usuario seleccionó solo la cuota 2 y esta quedó CANCELADA antes de confirmar, CUANDO confirma el envío, ENTONCES el sistema no envía ningún correo, no registra un intento e informa que excluyó la cuota 2 por estar cancelada.
+- [NUEVO] (borde) DADO QUE el usuario seleccionó solo la cuota 2 y esta quedó CANCELADA antes de confirmar, CUANDO confirma el envío, ENTONCES el sistema responde 422 SIN_CUOTAS_APTAS, no envía ningún correo, no registra un intento e informa que excluyó la cuota 2 por estar cancelada.
 - [NUEVO] (positivo) DADO QUE el usuario selecciona, del mismo cliente, la cuota 1 VENCIDA y la cuota 3 PENDIENTE, CUANDO confirma el envío y Resend lo acepta, ENTONCES salen 2 correos: uno con la maqueta «por cobrar vencida» y otro con «por cobrar por vencer».
 - [NUEVO] (borde) DADO QUE el contacto está DESACTIVADO y su cuota 1 sigue VENCIDA con saldo, CUANDO el usuario envía el aviso, ENTONCES el sistema lo envía normalmente.
 - [NUEVO] (borde) DADO QUE la cuota 2 tiene un aviso «Enviado» del tipo «por cobrar por vencer» para la fecha efectiva 2026-11-09, CUANDO el 2026-11-10 la cuota ya está VENCIDA y el usuario la selecciona, ENTONCES el sistema la envía con la maqueta «por cobrar vencida» sin pedir la confirmación de «Reenviar aviso», porque cambió el tipo de aviso.
@@ -482,15 +487,48 @@ Los casos de redondeo de RN-053 y estos criterios están pendientes de aprobaci�
 - [NUEVO] (positivo) DADO QUE el aviso es de una cuenta por pagar vencida, CUANDO el usuario abre la pantalla de envío, ENTONCES el campo de comentario se muestra desde el inicio y no es obligatorio.
 - [NUEVO] (positivo, QA-04) DADO QUE el usuario escribe el comentario «Favor confirmar fecha de pago», CUANDO se envía el aviso, ENTONCES el comentario se guarda en la bandeja y aparece en el correo como «FAVOR CONFIRMAR FECHA DE PAGO»; una llamada directa al API con el texto en minúsculas guarda el mismo valor en mayúsculas.
 - [NUEVO] (negativo, aislamiento) DADO QUE la cuota 900 pertenece a otra empresa, CUANDO el usuario envía al API un aviso que incluye la cuota 900, ENTONCES el sistema responde HTTP 404 igual que para una cuota inexistente, no envía ningún correo y no registra ningún intento en la bandeja.
+- [NUEVO] (negativo, terminación contractual, C-03; ajustado M-05) DADO QUE la empresa tiene terminación efectiva el 2027-03-31 a las 18:00 (America/Lima), CUANDO a partir de esa hora se intenta un envío nuevo, reenvío o reintento de aviso, ENTONCES el sistema lo rechaza sin llamar al proveedor de correo ni registrar otro intento, y conserva el historial anterior.
 
-**Reglas de negocio relacionadas:** RN-013, RN-039, RN-041, RN-042, RN-043, RN-045, RN-066, RN-067, RN-075, RN-104, RN-112, RN-113, RN-114, RN-115, RN-116, RN-117, RN-120, RN-130, RN-136, RN-137, RN-138, RN-155, RN-157, RN-158, RN-159, RN-162, RN-164, RN-178, RN-212, RN-213, RN-214, RN-215. Agregadas por QA [NUEVO]: RN-008.
+- [NUEVO] (concurrencia, M-05) DADO QUE dos usuarios confirman las mismas cuotas al mismo tiempo, CUANDO existe un intento EN_PROCESO con plazo vigente, ENTONCES solo se guarda y envía uno, y el otro recibe INTENTO_EN_PROCESO sin intento adicional.
+- [NUEVO] (recuperación, M-05) DADO QUE el proceso cayó después de guardar un intento, CUANDO vence su plazo sin éxito registrado, ENTONCES las lecturas lo muestran como NO_ENVIADO, y antes de un nuevo envío el servidor persiste el cierre y libera las cuotas sin llamar al proveedor por el intento anterior. Una respuesta tardía no modifica ese cierre.
+- [NUEVO] (exclusión, M-05) DADO QUE el comprobante se anuló antes de confirmar, CUANDO se intenta enviar o volver a intentar, ENTONCES sus cuotas se excluyen con motivo COMPROBANTE_ANULADO; si no queda ninguna apta, se responde 422 SIN_CUOTAS_APTAS sin guardar intentos ni llamar al proveedor.
+
+**Reglas de negocio relacionadas:** RN-013, RN-039, RN-041, RN-042, RN-043, RN-045, RN-066, RN-067, RN-075, RN-104, RN-112, RN-113, RN-114, RN-115, RN-116, RN-117, RN-120, RN-130, RN-136, RN-137, RN-138, RN-155, RN-157, RN-158, RN-162, RN-164, RN-178, RN-212, RN-213, RN-214, RN-215. Agregadas por QA [NUEVO]: RN-008, RN-152 (solo el rechazo de avisos desde la terminación efectiva; C-03).
 
 **Notas:**
 - «Enviado» significa que Resend aceptó el correo, no que el destinatario lo recibió (alcance M5, K5).
 - El envío es siempre manual (RN-215); el aviso automático está fuera de alcance (O16). Solo se usan correo y la bandeja interna; WhatsApp, Telegram y SMS están excluidos (PRINCIPIO-009, O4).
 - En entornos de prueba los correos solo se envían al buzón de prueba del proyecto (RN-013, PRINCIPIO-011).
-- Si un intento queda «No verificable», el usuario puede enviar un aviso nuevo con advertencia (RN-159).
-- Candidata a división en sprint: (a) lista de cuotas por avisar y envío, (b) reenvío y resolución de resultados (rechazo, sin confirmar, verificación).
+- Decisión M-05 (2026-11-10): un intento fallido o con tiempo de espera queda «No Enviado» y permite otro intento manual. Se retira RN-159 y su flujo; el plazo pertenece al servidor, no al navegador.
+- Candidata a división en sprint: (a) lista de cuotas por avisar y envío, (b) reenvío, errores/tiempos de espera y bandeja interna.
+
+---
+
+## Historial compartido entre S1 y S4
+
+### HU-017: Consultar el historial cronológico de una cuota
+
+**Prioridad:** Should (se entrega con S1 o con S4, la que llegue primero)
+
+**Estado:** aprobada por decisión del usuario del 2026-11-10 (M-06). Capacidad compartida entre S1 y S4; no incorpora el reporte ni las exportaciones de S4.
+
+**Como** usuario de la empresa (cualquier rol), **quiero** ver en orden cronológico todo lo que pasó con una cuota, **para** entender su situación actual sin reconstruirla a mano.
+
+**Criterios de aceptación:**
+
+- [NUEVO] (positivo) DADO QUE un comprobante por cobrar emitido el 2026-10-01 tiene una cuota de S/ 100.00 con vencimiento 2026-10-15 y pagos de S/ 40.00 del 2026-10-10 y S/ 60.00 del 2026-10-20, CUANDO el usuario abre el historial, ENTONCES ve en orden: emisión (2026-10-01), pago de S/ 40.00 (2026-10-10), paso a VENCIDA (2026-10-16), pago de S/ 60.00 y paso a CANCELADA (2026-10-20).
+- [NUEVO] (borde) DADO QUE el pago del 2026-10-10 se registró el 2026-10-21, después del pago del 2026-10-20, CUANDO se muestra el historial, ENTONCES se ordena por la fecha del hecho y no por la de registro; la fecha y hora de registro se muestran solo como dato informativo.
+- [NUEVO] (borde) DADO QUE se anula el pago de S/ 60.00, CUANDO se recalcula el historial, ENTONCES muestra la anulación con su importe y la reapertura de la cuota, y deja de mostrar el paso a CANCELADA.
+- [NUEVO] (borde) DADO QUE S1 no se ha entregado, CUANDO se muestra el historial, ENTONCES no aparecen eventos de reprogramación.
+- [NUEVO] (negativo, aislamiento) DADO QUE la cuota 900 pertenece a otra empresa, CUANDO el usuario solicita su historial, ENTONCES el sistema responde HTTP 404.
+
+- [NUEVO] (positivo, roles, M-06) DADO QUE un OPERADOR registró una reprogramación del 2026-11-10 al 2026-11-20, CUANDO un OPERADOR, SUPERVISOR o ADMINISTRADOR de la misma empresa consulta el historial, ENTONCES ve la reprogramación con ambas fechas y su fecha y hora de registro.
+- [NUEVO] (borde, retroactividad, M-06) DADO QUE una cuota de S/ 1,000.00 vence el 2026-10-15 y tenía un pago de S/ 400.00 del 2026-10-10, CUANDO el 2026-10-25 se registra un pago de S/ 600.00 del 2026-10-14, ENTONCES la nueva consulta muestra CANCELADA el 2026-10-14 y deja de mostrar VENCIDA el 2026-10-16, conservando las fechas de registro como información.
+- [NUEVO] (borde, empates, M-06) DADO QUE una cuota de S/ 100.00 vence el 2026-10-15, CUANDO recibe un pago de S/ 100.00 el 2026-10-16, ENTONCES muestra el pago y CANCELADA, sin VENCIDA; con un pago de S/ 40.00 muestra el pago y luego VENCIDA. Los demás empates siguen el orden de RN-078.
+- [NUEVO] (conservación, M-06) DADO QUE se anula un pago de S/ 60.00, CUANDO se consulta el historial, ENTONCES el pago original permanece marcado como anulado junto con su anulación y su importe; las transiciones se recalculan sin eliminar hechos registrados.
+- [NUEVO] (disponibilidad, M-06) DADO QUE no se entregó S1 ni S4, CUANDO se consulta el historial, ENTONCES la ruta responde 404 y la interfaz no ofrece la vista; al entregar cualquiera de las dos capacidades, la vista está disponible sin exigir la otra.
+
+**Reglas de negocio relacionadas:** RN-078, RN-083, RN-084, RN-088, RN-060, RN-008, RN-205, RN-206, RN-198.
 
 ---
 
@@ -508,13 +546,14 @@ Los casos de redondeo de RN-053 y estos criterios están pendientes de aprobaci�
 | HU-008 | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ✅ | Lee datos de HU-005 y HU-006; puede probarse con datos de prueba. Tamaño grande: división propuesta en notas. |
 | HU-009 | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | Requiere usuarios (HU-003); se puede entregar antes o junto con HU-010. [NUEVO] I pasa a ⚠️ por coherencia con la observación: depende de HU-003 para tener SUPERVISORES y ADMINISTRADORES ACTIVOS. |
 | HU-010 | ⚠️ | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | Requiere cuotas (HU-005) y configuración (HU-009). La integración con Resend aumenta la incertidumbre de estimación. Tamaño grande: división propuesta en notas. |
-| HU-011 | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | Post-MVP; requiere cuotas y pagos del MVP. |
+| HU-011 | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | Post-MVP; requiere cuotas y pagos del MVP y la entrega conjunta del historial HU-017. |
 | HU-012 | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | Post-MVP; independiente de S1, S3 y S4. [NUEVO] I pasa a ⚠️: la tarjeta tiempo promedio de cobro vive en el panel de HU-008 y usa los cobros de HU-006. Corrección sugerida: probar el cálculo como función pura con casos de referencia, separado de la tarjeta. |
+| HU-017 | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ✅ | Post-MVP; usa hechos conservados del MVP y se divide en consulta y vista (T-038/T-039). Reutilizable entre S1 y S4. |
 
 **Leyenda:** ✅ cumple · ⚠️ cumple con observación.
 
 - **Independent:** las dependencias marcadas son de datos (orden natural del dominio: empresa → usuarios → contactos → comprobantes → pagos), no de diseño. Cada HU puede desarrollarse y probarse por separado con datos de prueba ficticios.
-- **Small:** HU-002, HU-005, HU-008 y HU-010 (y, desde la revisión QA [NUEVO], HU-001) concentran funcionalidades amplias del alcance para respetar el límite de 12 HUs. Cada una indica en sus notas la división recomendada para planificar sprints (Agente SM / backlog `08`).
+- **Small:** HU-002, HU-005, HU-008 y HU-010 (y, desde la revisión QA [NUEVO], HU-001) concentran funcionalidades amplias del alcance para respetar el límite original de 12 HUs; M-06 amplía el conjunto aprobado a 13 al incorporar HU-017. Cada una indica en sus notas la división recomendada para planificar sprints (Agente SM / backlog `08`).
 - **Estimable:** HU-010 depende del comportamiento de Resend (aceptación, rechazo y tiempo de espera); se recomienda un *spike* técnico corto antes de estimarla.
 
 ---
@@ -529,10 +568,10 @@ Los casos de redondeo de RN-053 y estos criterios están pendientes de aprobaci�
 | M4 Panel de cartera y vencimientos | HU-008 | Cubierta |
 | M5 Notificación de vencimientos | HU-009, HU-010 | Cubierta |
 | M6 Usuarios por empresa con roles | HU-001, HU-002, HU-003, HU-007 (permisos de anulación), HU-009 (configuración) | Cubierta |
-| S1 Reprogramación con promesa de pago | HU-011 | Cubierta |
+| S1 Reprogramación con promesa de pago | HU-011 y HU-017 | Cubierta documentalmente; la entrega exige reprogramación, visibilidad RN-036 e historial RN-078 (M-06). |
 | S3 Evaluación de comportamiento de pago | HU-013 (sugerida) [NUEVO] | Pendiente para la siguiente iteración del backlog (RN-054 a RN-056, RN-148). |
-| S4 Reporte de vencimientos y exportación | HU-014, HU-015, HU-016 y HU-017 (sugeridas) [NUEVO] | Pendiente para la siguiente iteración del backlog (RN-050, RN-051, RN-076 a RN-079, RN-144 a RN-146, RN-163, RN-183 a RN-188). |
-| Procedimiento interno de baja contractual [NUEVO] | HU-018 (sugerida) | Regla MUST sin HU (RN-152). |
+| S4 Reporte de vencimientos y exportación | HU-014, HU-015 y HU-016 (sugeridas); HU-017 aprobada y compartida | Reporte y exportaciones pendientes; historial RN-078 cubierto por HU-017 y reutilizable desde S1 (M-06). |
+| Procedimiento interno de baja contractual [NUEVO] | HU-018 (sugerida); bloqueo en HU-002 y HU-010 | El bloqueo desde la terminación efectiva de RN-152 está cubierto por HU-002 y HU-010 (C-03); la constancia y la baja son un procedimiento operativo manual fuera del alcance (pregunta 52, resuelta el 2026-11-10). |
 | S5 Tiempo promedio de cobro de comprobantes saldados | HU-012 | Cubierta |
 | C1 Importación desde Excel | — | No incluida (Could). |
 | C3 Maquetas de aviso editables | — | No incluida (Could). |
@@ -540,9 +579,9 @@ Los casos de redondeo de RN-053 y estos criterios están pendientes de aprobaci�
 
 **Reglas sin HU directa (por diseño):**
 - Reglas transversales de seguridad, datos y cálculo listadas en «Requisitos transversales» (aplican a todas las HUs como *Definition of Done*).
-- Procedimientos operativos internos sin interfaz de usuario: baja contractual (RN-152), solicitudes de eliminación de datos personales (RN-151, RN-257) y gestión operativa de claves (RN-237 a RN-242).
+- Procedimientos operativos internos sin interfaz de usuario: baja contractual (RN-152), solicitudes de eliminación de datos personales (RN-151, RN-257). La gestión operativa de claves de datos (RN-237 a RN-242) se retiró por E-015. Por decisión de alcance (M-11, 2026-11-10), RN-151 y RN-257 corresponden al equipo de VenceYa, coordinado con la empresa cliente, fuera del alcance funcional y del backlog de desarrollo; no requieren HU. Su definición operativa y revisión legal permanecen pendientes antes del lanzamiento en la pregunta 31.
 - Reglas de S3 y S4, pendientes según la tabla anterior.
-- El historial cronológico de cuotas (RN-078) se entrega con S1 (HU-011) o S4, la que llegue primero; desde el MVP se conservan sus registros (RN-083).
+- RN-078 tiene HU directa aprobada: HU-017; se entrega con S1 (HU-011) o S4, la que llegue primero. Desde el MVP se conservan sus registros (RN-083).
 
 El Agente QA (`06-user-stories-qa.xml`) validará esta cobertura e identificará reglas sin HU asociada. [NUEVO] Validación hecha el 2026-11-09: ver «Revisión QA».
 
@@ -552,7 +591,9 @@ El Agente QA (`06-user-stories-qa.xml`) validará esta cobertura e identificará
 
 **Agente:** QA Funcional (BMAD), 2026-11-09. **Insumos:** este documento, `03-reglas-de-negocio.md` (248 reglas) y `00-constitucion.md` (PRINCIPIO-001 a PRINCIPIO-012, enmiendas E-001 a E-012). No se eliminó ninguna HU ni ningún criterio.
 
-[NUEVO] **Segunda pasada (2026-11-09):** los insumos vigentes son 252 reglas (sin contar las retiradas RN-037, RN-038, RN-040, RN-064, RN-065, RN-068 y RN-125) y las enmiendas E-001 a E-013. Las cifras de esta sección se actualizaron con esos insumos.
+**Actualización M-06 (2026-11-10):** HU-017 está aprobada y tiene 10 criterios de aceptación; su evaluación se agrega a INVEST y su cobertura a la matriz vigente. Los recuentos de escenarios de HU-001 a HU-012 que siguen son antecedentes de la revisión QA, no una nueva ejecución de pruebas.
+
+[NUEVO] **Segunda pasada (2026-11-09; actualizada M-05, 2026-11-10):** los insumos actuales son 251 reglas vigentes (sin contar las retiradas RN-037, RN-038, RN-040, RN-064, RN-065, RN-068, RN-125 y RN-159). M-05 retira RN-159 y sustituye los criterios de verificación de HU-010; no modifica las enmiendas de la constitución.
 
 ### 1. Cobertura de escenarios por HU
 
@@ -604,7 +645,7 @@ No se reescribieron, para respetar la restricción de solo enriquecer. Se sugier
 | Los datos de ejemplo son ficticios con dominio `.example`. | PRINCIPIO-005; RN-194 | Coherente. El ejemplo de la constitución usa `example.com`; ambos son dominios reservados. |
 
 | [NUEVO] La fila de cifrado de «Requisitos transversales» omitía las copias en destinatarios de avisos. | PRINCIPIO-004 | **Corregido** en la tabla, marcado [NUEVO]. |
-| [NUEVO] HU-004 permite eliminar un contacto sin comprobantes (RN-130), pero no define qué pasa con su historial de ediciones (RN-129), cuando la conservación de historiales es un requisito transversal. | PRINCIPIO-006; RN-150 | **Ambigüedad**: QA-13 → pregunta 51. No se cambian criterios. |
+| [NUEVO] HU-004 permite eliminar un contacto sin comprobantes (RN-130), pero no define qué pasa con su historial de ediciones (RN-129), cuando la conservación de historiales es un requisito transversal. | PRINCIPIO-006; RN-150 | **Resuelta (2026-11-10)**: QA-13 → pregunta 51, opción B: el historial se conserva. |
 | [NUEVO] HU-011 usa «fecha actual» en lugar de «fecha de cálculo». | PRINCIPIO-007; RN-198 | Coherente en el fondo; se aclaró la equivalencia en las notas de HU-011. |
 
 Ningún criterio, original ni [NUEVO], contradice la constitución.
@@ -622,14 +663,16 @@ Ningún criterio, original ni [NUEVO], contradice la constitución.
 | QA-07 | HU-001 | Reenvío de la invitación del primer administrador | **Resuelta (2026-11-09):** VenceYa solo reenvía si el primer administrador sigue INVITADO y no existe ningún ADMINISTRADOR ACTIVO. El reenvío no reactiva DESACTIVADOS; con otro administrador activo, la gestión corresponde a este; sin ninguno, se trata como incidencia para revisión interna (RN-095, RN-098, RN-099, RN-100). |
 | QA-08 | HU-001, HU-003 | Falla al enviar la invitación | **Resuelta (2026-11-09):** si el envío falla o no se puede confirmar, no se revierte la creación; el usuario queda INVITADO con su enlace vigente, la pantalla lo informa y el reenvío es solo manual, sin reintentos automáticos (RN-098; criterios [NUEVO] en HU-001 y HU-003). |
 | QA-09 | HU-003 | Reactivación de usuarios | **Resuelta (2026-11-09):** quien ya definió su contraseña vuelve a ACTIVO con ella; quien nunca la definió pasa a INVITADO con enlace nuevo de 72 horas (RN-098, RN-099; criterios [NUEVO] en HU-003). |
-| QA-10 | HU-012 | Redondeo del tiempo promedio de cobro | **Resuelta (2026-11-09):** dos decimales con redondeo mitad hacia arriba, una sola vez sobre el promedio final (RN-053, RN-147). Casos de referencia propuestos, pendientes de aprobación según PRINCIPIO-007. |
+| QA-10 | HU-012 | Redondeo del tiempo promedio de cobro | **Resuelta (2026-11-09):** dos decimales con redondeo mitad hacia arriba, una sola vez sobre el promedio final (RN-053, RN-147). Casos de referencia definidos como resultados esperados para las pruebas automáticas, sin aprobación humana específica (PRINCIPIO-007, E-014); ejecución pendiente. |
 | QA-11 | HU-012 | Meses seleccionables | **Resuelta (2026-11-09):** meses anteriores y actual admitidos; actual con «Mes en curso — datos parciales»; futuros rechazados en interfaz y backend; último mes completo por defecto (RN-147). |
 | QA-12 | HU-013 (sugerida) | Permiso del indicador S3 | **Resuelta (2026-11-09):** todos los roles lo consultan, en el detalle y en el catálogo de contactos (RN-261 y nueva fila en RN-060). |
-| QA-13 [NUEVO] | HU-004 | Historial de un contacto eliminado | **Abierta → pregunta 51.** RN-130 permite eliminar un contacto sin comprobantes y «eliminar el registro», pero no define si su historial de ediciones de campos (RN-129) se elimina, se conserva o se conserva sin datos personales. La fila de conservación de «Requisitos transversales» (PRINCIPIO-006, RN-150) dice que no se eliminan historiales. |
+| QA-13 [NUEVO] | HU-004 | Historial de un contacto eliminado | **Resuelta el 2026-11-10 → pregunta 51 (opción B).** RN-130 permite eliminar un contacto sin comprobantes; su historial de ediciones de campos (RN-129) se conserva sin cambios y cifrado, y las copias de datos personales se atienden por el procedimiento interno de RN-151. La fila de conservación de «Requisitos transversales» (PRINCIPIO-006, RN-150) dice que no se eliminan historiales. |
 
-Las ambigüedades abiertas se registraron el 2026-11-09 en `05-preguntas-abiertas.md`: QA-01 → pregunta 43 (resuelta el 2026-11-09 en RN-098 y RN-102: límite exclusivo, vigencia comprobada al canjear), QA-03 → 44 (resuelta el 2026-11-09 en RN-162 y RN-030: TRIM, mayúsculas, de 1 a 500 caracteres), QA-06 → 45 (resuelta el 2026-11-09 en RN-162: mismo formato que el nombre del contacto), QA-07 → 46 (resuelta el 2026-11-09 en RN-095 y RN-098: INVITADO y sin ADMINISTRADOR ACTIVO; reenvío sin reactivación), QA-08 → 47 (resuelta el 2026-11-09 en RN-098: sin reversión, usuario INVITADO y reenvío manual), QA-09 → 48 (resuelta el 2026-11-09 con RN-098: contraseña definida → ACTIVO; sin ella → INVITADO con enlace nuevo). QA-11 → pregunta 50 se resolvió el mismo día en RN-147. QA-10 → pregunta 49 se resolvió el mismo día respecto del método; sus casos de referencia quedan pendientes de aprobación según PRINCIPIO-007. [NUEVO] QA-13 se registró el 2026-11-09 como pregunta 51, abierta.
+Las ambigüedades abiertas se registraron el 2026-11-09 en `05-preguntas-abiertas.md`: QA-01 → pregunta 43 (resuelta el 2026-11-09 en RN-098 y RN-102: límite exclusivo, vigencia comprobada al canjear), QA-03 → 44 (resuelta el 2026-11-09 en RN-162 y RN-030: TRIM, mayúsculas, de 1 a 500 caracteres), QA-06 → 45 (resuelta el 2026-11-09 en RN-162: mismo formato que el nombre del contacto), QA-07 → 46 (resuelta el 2026-11-09 en RN-095 y RN-098: INVITADO y sin ADMINISTRADOR ACTIVO; reenvío sin reactivación), QA-08 → 47 (resuelta el 2026-11-09 en RN-098: sin reversión, usuario INVITADO y reenvío manual), QA-09 → 48 (resuelta el 2026-11-09 con RN-098: contraseña definida → ACTIVO; sin ella → INVITADO con enlace nuevo). QA-11 → pregunta 50 se resolvió el mismo día en RN-147. QA-10 → pregunta 49 se resolvió el mismo día respecto del método; E-014 retira la aprobación humana específica de sus casos de referencia y mantiene su implementación como pruebas automáticas trazables a las reglas; no acredita ejecución. [NUEVO] QA-13 se registró el 2026-11-09 como pregunta 51 y se resolvió el 2026-11-10 (opción B: se conserva el historial).
 
 ### 5. Reglas de negocio sin HU asociada
+
+**Antecedente histórico de las pasadas QA (previo a M-06):** los recuentos de las tablas siguientes corresponden a sus fechas y no incluyen la aprobación posterior de HU-017. M-06 agrega RN-078 a HU-011 e incorpora HU-017 (9 reglas relacionadas); la matriz de `08-backlog-reporte.md` recoge el recálculo vigente.
 
 Se cruzaron las 248 reglas de `03-reglas-de-negocio.md` con la línea «Reglas de negocio relacionadas» de cada HU:
 
@@ -639,28 +682,28 @@ Se cruzaron las 248 reglas de `03-reglas-de-negocio.md` con la línea «Reglas d
 | Solo en «Requisitos transversales» (*Definition of Done*) | 49 | RN-007, RN-008, RN-011, RN-012, RN-014, RN-023, RN-052, RN-141, RN-142, RN-150, RN-189 a RN-197, RN-199, RN-200, RN-202 a RN-204, RN-216, RN-218 a RN-221, RN-223 a RN-242 | Correcto por diseño. RN-052 (exportación sin datos de otra empresa) se asigna además a HU-015. |
 | Sin HU: S3 | 4 | RN-054, RN-055, RN-056, RN-148 | HU-013 sugerida. |
 | Sin HU: S4 | 16 | RN-050, RN-051, RN-076, RN-077, RN-078, RN-079, RN-144, RN-145, RN-146, RN-163, RN-183 a RN-188 | HU-014 a HU-017 sugeridas. RN-079 es **MUST**, pero solo aplica cuando se entregue S4. |
-| Sin HU: procedimientos internos | 3 | RN-151, RN-152, RN-257 | HU-018 sugerida para RN-152. RN-151 y RN-257 quedan **bloqueadas** por la pregunta abierta 31 (procedimiento de solicitudes de eliminación sin definir). |
+| Procedimientos internos (recuento de la primera pasada) | 3 | RN-151, RN-152, RN-257 | Actualización de alcance: RN-151 y RN-257 quedan sin HU por diseño, como gestión interna de VenceYa fuera del backlog (M-11); la pregunta 31 conserva el pendiente operativo y legal previo al lanzamiento. RN-152: bloqueo en HU-002 y HU-010; constancia y baja como procedimiento manual, sin desarrollar HU-018 (C-03, pregunta 52). |
 
 No hay referencias a reglas inexistentes ni retiradas (RN-037, RN-038 y RN-125).
 
-[NUEVO] **Recuento de la segunda pasada (252 reglas vigentes):**
+[NUEVO] **Recuento de la segunda pasada, actualizado por M-05 (251 reglas vigentes):**
 
 | Situación | Cantidad | Reglas | Tratamiento |
 |---|---|---|---|
-| Referenciadas por HU-001 a HU-012 | 180 | — | Cubiertas, incluidas RN-258 a RN-260 en HU-002. |
-| Solo en HUs sugeridas | 24 | S3: RN-054, RN-055, RN-056, RN-148, RN-261 · S4: RN-050, RN-051, RN-052, RN-076 a RN-079, RN-144 a RN-146, RN-163, RN-183 a RN-188 · Baja contractual: RN-150, RN-152 | HU-013 a HU-018 sugeridas. Siguen pendientes de aprobación del PO. |
-| Solo en «Requisitos transversales» | 46 | RN-007, RN-011, RN-012, RN-014, RN-023, RN-141, RN-142, RN-189 a RN-197, RN-199, RN-200, RN-202 a RN-204, RN-216, RN-218 a RN-221, RN-223 a RN-242 | Correcto por diseño (*Definition of Done*). |
-| Sin HU | 2 | RN-151, RN-257 | Bloqueadas por la pregunta abierta 31. No se sugiere HU. |
+| Referenciadas por HU-001 a HU-012 | 181 | — | Cubiertas, incluidas RN-258 a RN-260 en HU-002 y RN-152 (solo el bloqueo desde la terminación efectiva) en HU-002 y HU-010 (C-03). |
+| Solo en HUs sugeridas | 23 | S3: RN-054, RN-055, RN-056, RN-148, RN-261 · S4: RN-050, RN-051, RN-052, RN-076 a RN-079, RN-144 a RN-146, RN-163, RN-183 a RN-188 · Baja contractual: RN-150 | HU-013 a HU-018 sugeridas. Siguen pendientes de aprobación del PO. |
+| Solo en «Requisitos transversales» | 27 | RN-012, RN-014, RN-023, RN-141, RN-193 a RN-197, RN-199, RN-200, RN-202 a RN-204, RN-216, RN-218, RN-221, RN-225, RN-227, RN-228, RN-230, RN-240, RN-262 a RN-266 (E-015: se retiraron RN-011, RN-142, RN-189 a RN-192, RN-219, RN-220, RN-223, RN-224, RN-226, RN-229, RN-231 a RN-239, RN-241 y RN-242) | Correcto por diseño (*Definition of Done*). |
+| Sin HU por diseño: procedimiento operativo interno | 2 | RN-151, RN-257 | Gestión interna del equipo de VenceYa, coordinada con la empresa cliente, fuera del alcance funcional y del backlog de desarrollo (M-11 cerrado documentalmente). La pregunta 31 conserva la definición operativa y revisión legal previas al lanzamiento; no bloquea las tareas de desarrollo ni exige una HU. |
 
-Tampoco se encontraron referencias a las reglas retiradas RN-040, RN-064, RN-065 y RN-068. No hacen falta HUs sugeridas nuevas.
+Las referencias funcionales no incluyen las reglas retiradas RN-040, RN-064, RN-065, RN-068 ni RN-159; esta última queda solo como antecedente de la decisión M-05. No hacen falta HUs sugeridas nuevas.
 
-Por las decisiones del 2026-11-09 se agregaron al catálogo RN-258, RN-259 y RN-260 (cubiertas por HU-002) y RN-261 (cubierta por HU-013 sugerida), y se modificaron RN-162, RN-060 y RN-030 (QA-03), además de los ejemplos de RN-059 y RN-061. El catálogo queda con 252 reglas.
+Por las decisiones del 2026-11-09 se agregaron al catálogo RN-258, RN-259 y RN-260 (cubiertas por HU-002) y RN-261 (cubierta por HU-013 sugerida), y se modificaron RN-162, RN-060 y RN-030 (QA-03), además de los ejemplos de RN-059 y RN-061. El catálogo quedó con 252 reglas vigentes; la retirada de RN-159 por M-05 (2026-11-10) lo deja en 251. El recálculo actual da 181 referenciadas por HU-001 a HU-012 y 45 solo transversales: RN-152 ya está en las HUs aprobadas y RN-007 no se cuenta otra vez como exclusiva transversal.
 
 ---
 
 ## HUs sugeridas [NUEVO]
 
-Propuestas del Agente QA para las reglas sin cobertura. Requieren la aprobación del PO antes de entrar al backlog (`08-backlog.md`). Las HUs de S3 y S4 son Should y no se incorporan al MVP (alcance §3.1).
+Propuestas del Agente QA para las reglas sin cobertura. HU-017 fue aprobada por decisión del usuario del 2026-11-10 (M-06) y trasladada a «Historial compartido entre S1 y S4». HU-013 a HU-016 siguen pendientes de aprobación; HU-018 no se desarrolla por la decisión de alcance de la pregunta 52. Las propuestas pendientes requieren aprobación antes de entrar al backlog (`08-backlog.md`). Las HUs de S3 y S4 son Should y no se incorporan al MVP (alcance §3.1).
 
 ### HU-013: Consultar el indicador de comportamiento de pago de un cliente [NUEVO]
 
@@ -750,24 +793,6 @@ Propuestas del Agente QA para las reglas sin cobertura. Requieren la aprobación
 
 ---
 
-### HU-017: Consultar el historial cronológico de una cuota [NUEVO]
-
-**Prioridad:** Should (se entrega con S1 o con S4, la que llegue primero)
-
-**Como** usuario de la empresa (cualquier rol), **quiero** ver en orden cronológico todo lo que pasó con una cuota, **para** entender su situación actual sin reconstruirla a mano.
-
-**Criterios de aceptación:**
-
-- [NUEVO] (positivo) DADO QUE un comprobante por cobrar emitido el 2026-10-01 tiene una cuota de S/ 100.00 con vencimiento 2026-10-15 y pagos de S/ 40.00 del 2026-10-10 y S/ 60.00 del 2026-10-20, CUANDO el usuario abre el historial, ENTONCES ve en orden: emisión (2026-10-01), pago de S/ 40.00 (2026-10-10), paso a VENCIDA (2026-10-16), pago de S/ 60.00 y paso a CANCELADA (2026-10-20).
-- [NUEVO] (borde) DADO QUE el pago del 2026-10-10 se registró el 2026-10-21, después del pago del 2026-10-20, CUANDO se muestra el historial, ENTONCES se ordena por la fecha del hecho y no por la de registro; la fecha y hora de registro se muestran solo como dato informativo.
-- [NUEVO] (borde) DADO QUE se anula el pago de S/ 60.00, CUANDO se recalcula el historial, ENTONCES muestra la anulación con su importe y la reapertura de la cuota, y deja de mostrar el paso a CANCELADA.
-- [NUEVO] (borde) DADO QUE S1 no se ha entregado, CUANDO se muestra el historial, ENTONCES no aparecen eventos de reprogramación.
-- [NUEVO] (negativo, aislamiento) DADO QUE la cuota 900 pertenece a otra empresa, CUANDO el usuario solicita su historial, ENTONCES el sistema responde HTTP 404.
-
-**Reglas de negocio relacionadas:** RN-078, RN-083, RN-084, RN-088, RN-060, RN-008, RN-205, RN-206.
-
----
-
 ### HU-018: Formalizar la terminación del contrato y la baja de una empresa [NUEVO]
 
 **Prioridad:** Must (procedimiento interno, igual que HU-001; RN-152 es una regla MUST)
@@ -785,4 +810,4 @@ Propuestas del Agente QA para las reglas sin cobertura. Requieren la aprobación
 
 **Reglas de negocio relacionadas:** RN-152, RN-150, RN-101, RN-149; PRINCIPIO-003, PRINCIPIO-006 (E-008, E-011).
 
-**Notas:** la eliminación dentro de 30 días aplica a la modalidad en la nube; en la modalidad local, la empresa administra la retención de su instalación y respaldos (`03-reglas-de-negocio.md`). Las solicitudes de eliminación de datos personales de un contacto (RN-151, RN-257) no tienen HU sugerida porque dependen de la pregunta abierta 31. La gestión operativa de claves (RN-237 a RN-242) sigue como procedimiento operativo sin interfaz de usuario.
+**Notas:** [NUEVO] **No se desarrolla como funcionalidad** (decisión del usuario del 2026-11-10, pregunta 52). El bloqueo desde la terminación efectiva (acceso, sesiones, enlaces y avisos) se implementa en HU-002 y HU-010. Fijar la fecha efectiva, conservar la constancia, ejecutar la limpieza de datos y reaplicar las bajas al restaurar un respaldo son un procedimiento operativo manual del equipo de VenceYa, con un script propio fuera del backlog y sin segunda aprobación. Automatizarlo más adelante sería un requerimiento nuevo. Los criterios de esta HU se conservan como referencia de lo que ese procedimiento debe cumplir. La eliminación dentro de 30 días aplica a la modalidad en la nube; en la modalidad local, la empresa administra la retención de su instalación y respaldos (`03-reglas-de-negocio.md`). Las solicitudes formales de eliminación de datos personales de un contacto (RN-151, RN-257) no tienen HU por decisión de alcance (M-11, 2026-11-10): el equipo de VenceYa las gestiona internamente, en coordinación con la empresa cliente, fuera del alcance funcional y del backlog de desarrollo. La pregunta 31 conserva el pendiente de definición operativa y revisión legal antes del lanzamiento, no una dependencia de desarrollo. La gestión operativa de claves de datos (RN-237 a RN-242) se retiró por E-015.

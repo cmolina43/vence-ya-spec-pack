@@ -1,3 +1,5 @@
+> **Actualización (2026-11-10, E-014; M-10):** las menciones históricas de aprobación pendiente de casos de referencia, incluidas QA-10 y QA-11, quedan sustituidas por pruebas automáticas con entradas y resultados esperados trazables a las reglas de negocio. No se requiere aprobación humana específica de esos casos. La aceptación humana se realiza sobre el aplicativo por historia o entrega; PRINCIPIO-012 sigue vigente. Esta actualización no acredita ejecución de pruebas ni aceptación funcional. Las respuestas anteriores se conservan como antecedentes.
+
 ## Crédito y cuotas
 
 1. **Número de cuotas:** ¿el usuario elige cuántas cuotas tiene un comprobante, o el sistema lo propone? (RN-015)
@@ -30,6 +32,7 @@ si debe ser obligatorio
 10. **Fallo de envío:** ¿qué pasa si el proveedor de correo no entrega el aviso? ¿Se reintenta, y cuántas veces? (no definido)
 que me recomiendas, como se maneja este tema?
 > **Reemplazada (2026-11-05, auditoría QA A-03):** con el aviso manual no hay reintentos automáticos. Un envío fallido queda como "no entregado" y el usuario puede reenviarlo. (RN-066, RN-067; RN-068 retirada)
+> **Actualizada (2026-11-10, M-05):** el usuario decide que también el tiempo de espera se trate como «No Enviado» y permita otro intento manual, sin verificación ni espera adicional. Sustituye la parte de avisos del cierre QA2-06 del 2026-11-07; véase el registro M-05 al final. «No Enviado» es un resultado de la aplicación, no un estado de entrega al destinatario.
 
 ## Fechas y panel
 
@@ -167,3 +170,31 @@ Decisión del usuario: se adopta la eliminación ordinaria solo para contactos s
 
 43. **¿Es válido un enlace de invitación usado a las 72:00:00 exactas, o uno de recuperación a los 60:00 minutos exactos (QA-01)?**
 > **Resuelta por decisión del usuario:** no. El límite es exclusivo, con el mismo criterio que el bloqueo (RN-103) y la sesión (RN-149): el enlace es válido mientras no se haya cumplido el plazo y está vencido desde el instante exacto en que se cumple. El plazo se mide con el reloj del servidor desde la emisión del enlace (cuando se genera y registra, no cuando llega el correo). La vigencia se comprueba al canjear el enlace, cuando el servidor recibe la contraseña, y no solo al abrirlo; no se aplica margen de tolerancia de reloj porque emisión y canje usan el mismo reloj. Se sigue la práctica habitual de tokens con vencimiento (por ejemplo, el claim `exp` de RFC 7519: no se acepta en o después del vencimiento). Casos de referencia: invitación emitida a las 10:00:00 del día 1 → aceptada el día 4 a las 09:59:59 y rechazada a las 10:00:00; recuperación emitida a las 08:00:00 → aceptada a las 08:59:59 y rechazada a las 09:00:00 (RN-098, RN-102; HU-002).
+
+## Solicitudes formales de eliminación de datos personales — M-11 (2026-11-10)
+
+31. **Resolución parcial por decisión del usuario: alcance funcional y gestión interna.**
+> Las solicitudes formales de eliminación de datos personales son gestionadas internamente por el equipo de VenceYa, en coordinación con la empresa cliente, fuera del alcance funcional de la aplicación y del backlog de desarrollo. RN-151 y RN-257 mantienen su prioridad MUST como obligaciones operativas; no requieren HU, pantalla, endpoint, componente ni tarea técnica. Una automatización posterior sería un requerimiento nuevo.
+
+El mantenimiento ordinario conserva sus reglas: un contacto puede vincularse a varios comprobantes de su empresa; desactivarlo impide seleccionarlo para nuevos comprobantes, conserva sus datos y relaciones, y no impide avisar sus cuotas pendientes elegibles. La eliminación física solo se admite sin comprobantes, incluidos los anulados, con confirmación y liberación del correo (RN-127, RN-130). Desactivar no acredita atención de una solicitud formal (RN-254).
+
+Se mantiene PRINCIPIO-005, E-010 y RN-257: quien ingresa textos libres responde por su contenido; el procedimiento no busca ni sustituye datos personales dentro de esos textos. Esta decisión no autoriza borrar registros económicos ni introduce una excepción a su conservación.
+
+La pregunta 31 permanece abierta por la definición operativa y revisión legal previas al lanzamiento, incluidos sus demás asuntos (datos tratados, proveedores, roles y flujo transfronterizo). Se asigna la gestión al equipo de VenceYa, sin designar ahora una persona concreta ni una fecha calendario como condición para cerrar M-11. Las designaciones de ejecución siguen pendientes. M-11 se cierra documentalmente respecto de la cobertura del backlog; no se acredita el procedimiento como operativo, cumplimiento legal ni autorización de lanzamiento. La pregunta 51 y M-09 sobre historiales del contacto eliminado se resolvieron después (ver más abajo).
+
+### Pregunta 51 (QA-13; M-09), resuelta el 2026-11-10
+
+Decisión del usuario (opción B): al eliminar un contacto sin comprobantes se retiran el registro, el correo cifrado y sus referencias de búsqueda; el historial de ediciones del contacto se conserva sin cambios y cifrado, y no se vincula a un contacto nuevo que reutilice el correo. Se descartaron borrar el historial y conservarlo sin datos personales: RN-255 ya establece que la eliminación ordinaria no supone eliminar todas las copias históricas de datos personales, y esas copias se atienden con el procedimiento interno de RN-151 (pregunta 31).
+
+## Simplificación de los fallos de avisos — M-05 (2026-11-10)
+
+**Decisión explícita del usuario:** «si el proceso agota el tiempo de espera, entonces es como si no se hubiera enviado». El usuario autorizó aplicar la propuesta de simplificación documental.
+
+- El plazo del intento pertenece al servidor y es de 10 s desde su creación. La respuesta exitosa registrada produce ENVIADO; rechazo, error o vencimiento sin éxito registrado producen NO_ENVIADO, con su motivo y el historial conservado.
+- El listado muestra «No Enviado» y «Enviar aviso» cuando no hay un envío exitoso para el tipo y vencimiento vigentes. Un intento fallido posterior no borra un éxito previo ni su fecha.
+- Cada intento nuevo lo inicia el usuario, con datos y destinatarios vigentes, nueva clave y exclusión de cuotas no aptas (RN-155). Si ninguna es apta, 422 SIN_CUOTAS_APTAS sin correo ni intento.
+- Se retiran RN-159, «Verificar envío», NO_VERIFICABLE, la espera de 24 horas, la advertencia adicional y el endpoint de verificación. Se mantiene el bloqueo contra envíos simultáneos únicamente mientras el plazo del intento EN_PROCESO sigue vigente. Una caída o una respuesta tardía no prolonga ese bloqueo.
+- Un tiempo de espera no permite asegurar que el proveedor no recibiera la solicitud; un intento manual posterior puede repetir ese correo. La aplicación adopta «No Enviado» como resultado funcional sin agregar comprobaciones ni pasos al usuario.
+- La simplificación corresponde a avisos. El puerto compartido conserva diagnósticos para invitaciones; no se cambia su flujo ni el de pagos.
+
+Se actualizan 02-alcance.md, 03-reglas-de-negocio.md, 04-glosario.md, 05-preguntas-abiertas.md, 06-user-stories.md, 07-architecture.md, 07-openapi.yaml y 08-backlog.md. M-05 se cierra documentalmente en 08-backlog-reporte.md; la parte de avisos de QA2-06 se conserva como antecedente sustituido. No se acredita implementación ni ejecución de pruebas funcionales.

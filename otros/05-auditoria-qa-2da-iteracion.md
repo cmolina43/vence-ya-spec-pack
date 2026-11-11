@@ -1,3 +1,5 @@
+> **Actualización (2026-11-10, E-014; M-10 del reporte de backlog):** se retira la aprobación humana específica de los casos de referencia. Las menciones a casos aprobados en QA2-33 y al registro pendiente de aprobación en QA2-34 se conservan como antecedentes de la política anterior y quedan sustituidas por pruebas automáticas trazables a reglas y resultados esperados. Se mantienen determinismo, cobertura mínima del 80 % desde la implementación, aceptación humana sobre el aplicativo por historia o entrega y revisión humana de cada merge. Los demás pendientes conservan su estado; no se acredita ejecución de pruebas.
+
 # 05 - Auditoría QA del Spec Pack VenceYa
 
 Fecha: 2026-11-06. Resultado: **madurez 3/5; necesita resolver conflictos y completar casos antes de delegar una implementación integral a agentes**.
@@ -13,7 +15,7 @@ Las ubicaciones RN remiten a `03-reglas-de-negocio.md`; PRINCIPIO a `00-constitu
 | QA2-03 | Resuelto | Decisión del usuario (2026-11-07) incorporada en RN-041, RN-066, RN-113, RN-138 y RN-155 (elegibilidad comprobada al confirmar cada envío o reenvío; una cuota que dejó de ser apta se excluye y el usuario ve el motivo). Glosario #30c alineado. Véase el cierre al final. |
 | QA2-04 | Resuelto | Decisión del usuario (2026-11-07) incorporada en RN-113, RN-136 y RN-138 (dirección aplicable en el reenvío y conservación del historial). Véase el cierre al final. |
 | QA2-05 | Resuelto | Decisión sobre avisos en el MVP documentada al final de esta auditoría. |
-| QA2-06 | Resuelto | Pagos en RN-156; botones en RN-157; avisos en RN-067, RN-112, RN-137, RN-158 y RN-159. Alcance M3, M5 y D2 y glosario alineados; véase el cierre al final. |
+| QA2-06 | Resuelto; avisos simplificados por M-05 (2026-11-10) | Pagos en RN-156 y protección de botones en RN-157. Avisos en RN-066, RN-067, RN-112, RN-137 y RN-158; RN-159 retirada. El cierre del 2026-11-07 se conserva como antecedente y su parte de avisos queda sustituida por la actualización M-05. |
 | QA2-07 | Resuelto | Regla general RN-160 y ejemplos de concurrencia en RN-003, RN-062, RN-073, RN-082, RN-091 y RN-100. Glosario alineado; véase el cierre al final. |
 | QA2-08 | Resuelto documentalmente | RN-088 define la cancelación económica; RN-089 exige orden cronológico por cuota y corrección mediante anulación y nuevo registro. RN-053, RN-074, RN-076 y glosario #35 y #60 alineados. Véanse los casos de referencia al final. |
 | QA2-09 | Cerrado documentalmente por exclusión | Conciliación y extractos fuera de esta versión mediante O19 y E-009; S2, K6, RN-037, RN-038 y RN-125 retirados sin reutilizar sus IDs. Véase el cierre al final. |
@@ -148,6 +150,8 @@ Orden sugerido: resolver QA2-01/02 y las interacciones de avisos/seudonimizació
 **2026-11-06, aplicación autorizada de los ajustes documentales:** RN-023 distingue la fecha de cálculo del momento de corte con fecha, hora y zona horaria y exige una lectura coherente por respuesta. RN-069 y RN-076 aplican ese corte al panel y al reporte y muestran «Datos al DD/MM/AAAA, HH:mm» en America/Lima. RN-077 y RN-144 establecen una nueva consulta por exportación y la identificación de su propio corte; un archivo puede diferir de una pantalla anterior si hubo cambios. M4 y S4 del alcance y las entradas 37, 46, 56 y 57 del glosario quedan alineadas. Se incorporan ejemplos de un pago entre pantalla y exportación, un pago durante la generación y una consulta que cruza medianoche. El cierre acredita coherencia documental; no acredita implementación ni pruebas de software. El hallazgo original se conserva como registro histórico.
 
 ## Cierre posterior de QA2-06
+
+> **Actualización M-05 (2026-11-10):** por decisión del usuario, la parte de avisos del cierre siguiente queda sustituida. Errores y tiempos de espera terminan como «No Enviado» y permiten otro intento manual, sin verificación, espera de 24 horas ni advertencia. RN-159 está retirada. Se mantiene la protección de concurrencia de RN-158 solo durante el plazo vigente del intento, y no se modifican las decisiones sobre pagos. El texto de 2026-11-07 se conserva como antecedente histórico. Véanse RN-066, RN-067, ADR-006 y la resolución de M-05 en `08-backlog-reporte.md`.
 
 **2026-11-07, decisión del usuario:** el doble clic se bloquea en el frontend deshabilitando el botón mientras la solicitud está en curso, pero la garantía contra efectos duplicados la da el backend, porque una solicitud repetida puede llegar desde otra pestaña, por un reintento del navegador o por una llamada directa.
 

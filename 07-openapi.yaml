@@ -21,8 +21,14 @@ info:
       otra empresa responde `404` con el mismo cuerpo que un recurso inexistente.
     - **Formato de error único:** esquema `Error` (`codigo`, `mensaje`, `detalles`, `idSolicitud`). Los mensajes
       nunca repiten los valores ingresados ni contienen datos personales o importes (PRINCIPIO-005).
+    - **Trazabilidad de accesos (RN-263 a RN-266):** el inicio y cierre de sesión y cada consulta, alta,
+      edición, anulación, eliminación o exportación de contactos, comprobantes, cuotas, pagos, avisos o usuarios
+      generan un registro de interacción lógica sin datos personales. Si no puede guardarse, la operación
+      responde `500` sin efectos ni datos. No cambia los contratos de las operaciones.
     - **Códigos de estado:** `400` cuerpo JSON mal formado o parámetros de ruta o de consulta inválidos;
-      `401` sin sesión vigente o credenciales inválidas; `403` rol sin permiso (RN-060); `404` recurso
+      `401` sin sesión vigente o credenciales inválidas; `403` rol sin permiso (RN-060) o contrato de la
+      empresa terminado (`CONTRATO_TERMINADO`, RN-152; una sesión abierta recibe `401` con ese mismo código
+      y queda cerrada); `404` recurso
       inexistente o de otra empresa; `409` conflicto con el estado vigente (duplicado, datos desactualizados,
       estado que no lo permite, concurrencia); `422` el cuerpo incumple las reglas de contenido o de negocio
       (RN-162 y demás). Un rechazo nunca deja efectos parciales (RN-160).
@@ -63,6 +69,8 @@ tags:
     description: Registro y anulación de cobros y pagos (HU-006, HU-007).
   - name: Reprogramaciones
     description: Promesas de pago sobre cuotas (HU-011, Should S1).
+  - name: Historiales
+    description: Historial cronológico de cuotas (HU-017, compartido entre S1 y S4).
   - name: Panel
     description: Panel de cartera y tiempo promedio de cobro (HU-008, HU-012).
   - name: Avisos
@@ -78,11 +86,14 @@ paths:
       tags: [Autenticacion]
       summary: Iniciar sesión con correo y contraseña
       description: |
-        **HU-002.** Normaliza el correo (TRIM y minúsculas), localiza la cuenta por su referencia protegida y
+        **HU-002.** Normaliza el correo (TRIM y minúsculas), localiza la cuenta por el correo normalizado y
         verifica la contraseña (Argon2id) sin recortarla. Solo un usuario ACTIVO inicia sesión. Tras 5 fallos
         consecutivos la cuenta queda bloqueada 15 minutos (RN-103); durante el bloqueo todo intento se rechaza sin
         contarse ni prolongar el bloqueo. Correo inexistente, contraseña incorrecta, cuenta bloqueada, INVITADA o
         DESACTIVADA reciben la misma respuesta `401`. Un inicio correcto reinicia el contador de fallos.
+        Si la contraseña es correcta pero la empresa tiene `terminacion_efectiva_en` menor o igual que el instante
+        actual, responde `403 CONTRATO_TERMINADO` sin crear la sesión (RN-101, RN-152); con una contraseña
+        incorrecta la respuesta sigue siendo la `401` neutra (RN-103).
         Responde con la cookie `venceya_sesion` y el token CSRF.
         **Roles:** público.
       security: []
@@ -120,6 +131,7 @@ paths:
                     codigo: CREDENCIALES_INVALIDAS
                     mensaje: El correo o la contraseña no son válidos.
                     idSolicitud: 0b6f2c1e-6a51-4f0e-9d3b-2f8a7c1d9e10
+        '403': { $ref: '#/components/responses/ContratoTerminado' }
         '422': { $ref: '#/components/responses/ValidacionFallida' }
 
   /autenticacion/cierre-sesion:
@@ -173,7 +185,8 @@ paths:
         se comprueba al canjear con el reloj del servidor (RN-098). La contraseña tiene de 8 a 128 caracteres,
         admite cualquier carácter, no se recorta ni normaliza y no puede estar vacía ni ser solo espacios
         (RN-246 a RN-250). Un rechazo no consume el enlace y el usuario sigue INVITADO (RN-253). El usuario queda
-        ACTIVO; no inicia sesión automáticamente.
+        ACTIVO; no inicia sesión automáticamente. Si la empresa tiene la terminación contractual efectiva,
+        responde `403 CONTRATO_TERMINADO` sin consumir el enlace (RN-152).
         **Roles:** público (portador del enlace).
       security: []
       requestBody:
@@ -188,6 +201,7 @@ paths:
         '204':
           description: Cuenta activada.
         '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '403': { $ref: '#/components/responses/ContratoTerminado' }
         '422':
           description: Enlace vencido, usado, revocado o inexistente, o contraseña inválida.
           content:
@@ -216,7 +230,8 @@ paths:
         **HU-002.** Responde siempre `202` con el mismo cuerpo, exista o no la cuenta y sea cual sea su estado
         (RN-258). Solo envía el enlace (60 minutos) a un usuario ACTIVO. Emitir un enlace revoca el anterior
         (RN-259). Máximo 3 envíos por usuario en 60 minutos; una solicitud sobre el límite no envía correo ni
-        revoca el enlace vigente (RN-260).
+        revoca el enlace vigente (RN-260). Si la empresa del usuario tiene la terminación contractual efectiva,
+        responde la misma `202` neutra sin enviar correo ni revocar enlaces (RN-152, RN-258).
         **Roles:** público.
       security: []
       requestBody:
@@ -249,7 +264,8 @@ paths:
         **HU-002.** Canjea el token de recuperación (60 minutos, límite exclusivo, un solo uso) y guarda un hash
         nuevo. Cierra todas las sesiones del usuario, desbloquea la cuenta y reinicia el contador de fallos
         (RN-102, RN-103). Se rechaza si el usuario ya no está ACTIVO. Un rechazo conserva la contraseña anterior y
-        no consume el enlace (RN-253).
+        no consume el enlace (RN-253). Si la empresa tiene la terminación contractual efectiva, responde
+        `403 CONTRATO_TERMINADO` sin consumir el enlace (RN-152).
         **Roles:** público (portador del enlace).
       security: []
       requestBody:
@@ -264,6 +280,7 @@ paths:
         '204':
           description: Contraseña restablecida; todas las sesiones del usuario quedaron cerradas.
         '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '403': { $ref: '#/components/responses/ContratoTerminado' }
         '422':
           description: Enlace no válido o contraseña inválida.
           content:
@@ -289,7 +306,7 @@ paths:
         reintento automático y el resultado se informa en `envioInvitacion` (QA-08).
         Validaciones (RN-162): `razonSocial` con TRIM, espacios internos reducidos a uno y mayúsculas, de 1 a 250
         caracteres, al menos una letra; letras, dígitos, espacios y `. , & - ' ( ) /`. `ruc`: exactamente 11
-        dígitos, tratado como texto (conserva ceros iniciales), único global por referencia protegida.
+        dígitos, tratado como texto (conserva ceros iniciales), único global por índice único.
         Correos con TRIM y minúsculas, máximo 250 caracteres. El correo del primer administrador es único global
         entre usuarios de cualquier estado; el error no revela a qué empresa pertenece.
         **Roles:** EQUIPO_VENCEYA (token de operaciones). Sin endpoint equivalente para roles de empresa.
@@ -391,7 +408,8 @@ paths:
         **HU-001.** Solo procede si el primer administrador sigue INVITADO y la empresa no tiene ningún
         ADMINISTRADOR ACTIVO; ambas condiciones se comprueban al guardar (RN-095, RN-098, RN-160). Emite un enlace
         nuevo de 72 horas y revoca el anterior en la misma operación. Audita quién lo hizo, el destinatario y la
-        fecha y hora, sin el enlace. No reactiva usuarios DESACTIVADOS.
+        fecha y hora, sin el enlace. No reactiva usuarios DESACTIVADOS. Se rechaza con `409 CONTRATO_TERMINADO`
+        si la empresa tiene la terminación contractual efectiva (RN-152).
         **Roles:** EQUIPO_VENCEYA (token de operaciones).
       x-roles: [EQUIPO_VENCEYA]
       security:
@@ -416,7 +434,7 @@ paths:
         '403': { $ref: '#/components/responses/PermisoDenegado' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
         '409':
-          description: El primer administrador ya está ACTIVO o DESACTIVADO, o la empresa ya tiene un ADMINISTRADOR ACTIVO.
+          description: El primer administrador ya está ACTIVO o DESACTIVADO, la empresa ya tiene un ADMINISTRADOR ACTIVO o su contrato terminó.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -431,6 +449,11 @@ paths:
                     codigo: EXISTE_ADMINISTRADOR_ACTIVO
                     mensaje: La empresa ya tiene un administrador activo; el reenvío corresponde a ese administrador.
                     idSolicitud: 8b2c3d4e-5f6a-4b7c-9d8e-0f1a2b3c4d51
+                contratoTerminado:
+                  value:
+                    codigo: CONTRATO_TERMINADO
+                    mensaje: El contrato de la empresa terminó; no se pueden emitir invitaciones.
+                    idSolicitud: 8b2c3d4e-5f6a-4b7c-9d8e-0f1a2b3c4d52
         '500': { $ref: '#/components/responses/ErrorInterno' }
 
   # ───────────────────────────── Usuarios (HU-003) ─────────────────────────────
@@ -523,7 +546,7 @@ paths:
                       actualizadoEn: "2026-11-09T10:00:00-05:00"
                       version: 1
                     envioInvitacion: { resultado: ENVIADO, enlaceVenceEn: "2026-11-12T10:00:00-05:00" }
-                sinConfirmar:
+                enProceso:
                   summary: El proveedor de correo agotó el tiempo de espera.
                   value:
                     usuario:
@@ -927,8 +950,8 @@ paths:
       summary: Cambiar el correo administrativo o la moneda por defecto
       description: |
         **HU-008, HU-009.** Cambia `correoAdministrativo` (TRIM, minúsculas, formato válido, máximo 250) y/o
-        `monedaPorDefecto`. Audita valor anterior, nuevo, usuario y fecha y hora; las copias persistidas del
-        correo se cifran (PRINCIPIO-004). Los avisos ya enviados no cambian; los nuevos usan el correo vigente
+        `monedaPorDefecto`. Audita valor anterior, nuevo, usuario y fecha y hora, sin escribirlos en logs
+        (RN-014). Los avisos ya enviados no cambian; los nuevos usan el correo vigente
         como copia y dirección de respuesta (RN-104).
         **Roles:** ADMINISTRADOR.
       x-roles: [ADMINISTRADOR]
@@ -1113,7 +1136,7 @@ paths:
       summary: Listar o buscar contactos
       description: |
         **HU-004, HU-005.** Lista paginada del catálogo de la empresa, ordenada por nombre. `busqueda` filtra por
-        coincidencia parcial del nombre (el correo cifrado no admite búsqueda parcial). `seleccionables=true`
+        coincidencia parcial del nombre; no busca por correo (alcance vigente). `seleccionables=true`
         devuelve solo contactos ACTIVOS, para registrar comprobantes.
         **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
       x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
@@ -1166,7 +1189,7 @@ paths:
         1 a 250 caracteres, al menos una letra; letras (con tilde, ñ, ü), dígitos, espacios y `. , & - ' ( ) /`
         (RN-162). `correo`: TRIM, minúsculas, formato válido con dominio con punto, 1 a 250 caracteres, único en la
         empresa incluidos los DESACTIVADOS (RN-127). `telefono` y `direccion` opcionales. No se piden DNI, RUC,
-        cuenta ni CCI. Correo, teléfono y dirección se cifran (PRINCIPIO-004).
+        cuenta ni CCI.
         **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
       x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
       parameters:
@@ -1243,7 +1266,7 @@ paths:
       description: |
         **HU-004.** Cambia nombre, correo, teléfono o dirección de un contacto ACTIVO o DESACTIVADO, con las mismas
         validaciones del registro (RN-129). Guarda por cada campo cambiado el valor anterior, el nuevo, el usuario
-        y la fecha y hora; las copias de campos cifrados se guardan cifradas. `telefono` o `direccion` en `null`
+        y la fecha y hora. `telefono` o `direccion` en `null`
         los borra. Los avisos posteriores usan el correo nuevo.
         **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
       x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
@@ -2291,6 +2314,88 @@ paths:
                     mensaje: No se puede consultar un mes futuro.
                     idSolicitud: 9e3f4a5b-6c7d-4e8f-0a9b-1c2d3e4f5a61
 
+  # ───────────────────────────── Historial compartido (HU-017, M-06) ─────────────────────────────
+  /cuotas/{cuotaId}/historial:
+    get:
+      operationId: obtenerHistorialCuota
+      tags: [Historiales]
+      summary: Consultar el historial cronológico de una cuota
+      description: |
+        **HU-017 (Should, S1 o S4, la primera que se entregue).** Devuelve todos los eventos de la cuota
+        en una lectura coherente, con corte y fechaCalculo en America/Lima (RN-078, RN-205, RN-206).
+        Se consulta también para comprobantes anulados, sin habilitar operaciones (RN-090).
+        Orden por fecha del hecho, nunca por fecha de registro. Empates: emisión, edición, reprogramación,
+        pago (registradaEn y luego registroId), anulación de pago, VENCIDA, CANCELADA y REAPERTURA.
+        Los hechos registrados conservan actor y fecha/hora de registro como información; el pago anulado
+        y su anulación permanecen. Las transiciones se calculan en cada consulta con pagos no anulados y
+        reprogramaciones vigentes: pueden desaparecer o cambiar de fecha tras una corrección. Un pago que
+        salda el día siguiente al vencimiento genera CANCELADA sin VENCIDA. No se guardan transiciones ni
+        se reconstruyen consultas anteriores. Sin promesas existentes no hay eventos de reprogramación.
+        Disponibilidad: FUNCIONALIDAD_S1 o FUNCIONALIDAD_S4; ambas apagadas responden 404. La ruta se registra
+        desde el MVP con un controlador mínimo que responde 404 hasta implementar T-038, incluso ante una
+        activación accidental. S4 sigue sin reporte ni exportaciones implementados. Consultar una cuota
+        ajena responde el mismo 404 que una inexistente. Esta lectura no escribe datos.
+        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
+      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
+      parameters:
+        - $ref: '#/components/parameters/CuotaId'
+        - $ref: '#/components/parameters/PeticionAutomatica'
+      responses:
+        '200':
+          description: Historial completo ordenado, calculado para el corte de esta consulta.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HistorialCuota' }
+              examples:
+                pagoRetroactivo:
+                  summary: Un pago registrado el 25/10 cancela el 14/10 y elimina VENCIDA del 16/10.
+                  value:
+                    cuotaId: 9002
+                    moneda: PEN
+                    corte: "2026-10-26T09:00:00-05:00"
+                    fechaCalculo: "2026-10-26"
+                    eventos:
+                      - { tipo: EMISION, fechaHecho: "2026-10-01", registroId: 501, registradaEn: null, registradaPor: null, importe: null, anulado: false, fechaAnterior: null, fechaNueva: null, cambios: [] }
+                      - { tipo: PAGO, fechaHecho: "2026-10-10", registroId: 701, registradaEn: "2026-10-10T10:00:00-05:00", registradaPor: { id: 12, correo: ana.torres@example.com }, importe: "400.00", anulado: false, fechaAnterior: null, fechaNueva: null, cambios: [] }
+                      - { tipo: PAGO, fechaHecho: "2026-10-14", registroId: 702, registradaEn: "2026-10-25T10:00:00-05:00", registradaPor: { id: 12, correo: ana.torres@example.com }, importe: "600.00", anulado: false, fechaAnterior: null, fechaNueva: null, cambios: [] }
+                      - { tipo: CANCELADA, fechaHecho: "2026-10-14", registroId: null, registradaEn: null, registradaPor: null, importe: null, anulado: false, fechaAnterior: null, fechaNueva: null, cambios: [] }
+                pagoAnulado:
+                  summary: El pago anulado permanece; se recalculan VENCIDA y la reapertura.
+                  value:
+                    cuotaId: 9003
+                    moneda: PEN
+                    corte: "2026-10-26T09:00:00-05:00"
+                    fechaCalculo: "2026-10-26"
+                    eventos:
+                      - { tipo: EMISION, fechaHecho: "2026-10-01", registroId: 502, registradaEn: null, registradaPor: null, importe: null, anulado: false, fechaAnterior: null, fechaNueva: null, cambios: [] }
+                      - { tipo: PAGO, fechaHecho: "2026-10-10", registroId: 703, registradaEn: "2026-10-10T10:00:00-05:00", registradaPor: { id: 12, correo: ana.torres@example.com }, importe: "40.00", anulado: false, fechaAnterior: null, fechaNueva: null, cambios: [] }
+                      - { tipo: VENCIDA, fechaHecho: "2026-10-16", registroId: null, registradaEn: null, registradaPor: null, importe: null, anulado: false, fechaAnterior: null, fechaNueva: null, cambios: [] }
+                      - { tipo: PAGO, fechaHecho: "2026-10-20", registroId: 704, registradaEn: "2026-10-20T10:00:00-05:00", registradaPor: { id: 12, correo: ana.torres@example.com }, importe: "60.00", anulado: true, fechaAnterior: null, fechaNueva: null, cambios: [] }
+                      - { tipo: ANULACION_PAGO, fechaHecho: "2026-10-25", registroId: 801, registradaEn: "2026-10-25T10:00:00-05:00", registradaPor: { id: 15, correo: luis.ramos@example.com }, importe: "60.00", anulado: false, fechaAnterior: null, fechaNueva: null, cambios: [] }
+                      - { tipo: REAPERTURA, fechaHecho: "2026-10-25", registroId: null, registradaEn: null, registradaPor: null, importe: null, anulado: false, fechaAnterior: null, fechaNueva: null, cambios: [] }
+                reprogramacion:
+                  summary: Edición y reprogramación con sus valores anteriores y nuevos.
+                  value:
+                    cuotaId: 9004
+                    moneda: PEN
+                    corte: "2026-11-21T09:00:00-05:00"
+                    fechaCalculo: "2026-11-21"
+                    eventos:
+                      - { tipo: EMISION, fechaHecho: "2026-10-01", registroId: 503, registradaEn: null, registradaPor: null, importe: null, anulado: false, fechaAnterior: null, fechaNueva: null, cambios: [] }
+                      - { tipo: EDICION, fechaHecho: "2026-11-02", registroId: 901, registradaEn: "2026-11-02T10:00:00-05:00", registradaPor: { id: 12, correo: ana.torres@example.com }, importe: null, anulado: false, fechaAnterior: null, fechaNueva: null, cambios: [{ campo: fecha_vencimiento_original, valorAnterior: "2026-11-10", valorNuevo: "2026-11-15" }] }
+                      - { tipo: REPROGRAMACION, fechaHecho: "2026-11-08", registroId: 301, registradaEn: "2026-11-08T10:00:00-05:00", registradaPor: { id: 12, correo: ana.torres@example.com }, importe: null, anulado: false, fechaAnterior: "2026-11-15", fechaNueva: "2026-11-20", cambios: [] }
+                      - { tipo: VENCIDA, fechaHecho: "2026-11-21", registroId: null, registradaEn: null, registradaPor: null, importe: null, anulado: false, fechaAnterior: null, fechaNueva: null, cambios: [] }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404':
+          description: Cuota inexistente o ajena, funcionalidad no disponible o controlador mínimo sin implementar; mismo formato de error común.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                noEncontrado:
+                  value: { codigo: RECURSO_NO_ENCONTRADO, mensaje: El recurso solicitado no existe., detalles: [], idSolicitud: "550e8400-e29b-41d4-a716-446655440000" }
+
   # ───────────────────────────── Avisos (HU-010) ─────────────────────────────
   /avisos/cuotas-por-avisar:
     get:
@@ -2301,7 +2406,9 @@ paths:
         **HU-010, HU-011.** Lista completa (sin ventana) de cuotas PENDIENTES y VENCIDAS con saldo, por cobrar y por
         pagar, de comprobantes no anulados, incluidas las de contactos DESACTIVADOS; mismo orden que el listado del
         panel. Cada fila trae el tipo de aviso que corresponde hoy, el último aviso «Enviado» (fecha y usuario), si
-        hay un intento sin confirmar y, con S1, la promesa activa (RN-036).
+        hay un intento EN_PROCESO con plazo vigente y, con S1, la promesa activa (RN-036).
+        Sin envío exitoso para el tipo y vencimiento vigentes, estadoAviso es NO_ENVIADO; un fallo posterior
+        conserva el envío exitoso anterior. Un plazo vencido no mantiene el bloqueo (RN-066, RN-067, RN-158).
         **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
       x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
       parameters:
@@ -2337,7 +2444,8 @@ paths:
                           enviadoEn: "2026-11-05T10:00:00-05:00"
                           enviadoPor: { id: 12, correo: ana.torres@example.com }
                           mismaFechaYTipo: true
-                        intentoSinConfirmarId: null
+                        estadoAviso: ENVIADO
+                        intentoEnProcesoId: null
                         promesaActiva: null
                 vacia:
                   value:
@@ -2392,19 +2500,18 @@ paths:
                       - cuotaId: 9002
                         enviadoEn: "2026-11-05T10:00:00-05:00"
                         enviadoPor: { id: 12, correo: ana.torres@example.com }
-                    advertenciaNoVerificable: false
                     firmaDestinatarios: "fd_1b9e6c2a7d4f"
         '400': { $ref: '#/components/responses/SolicitudInvalida' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
         '409':
-          description: Alguna cuota tiene un intento sin confirmar del mismo tipo y fecha efectiva.
+          description: Alguna cuota tiene un intento EN_PROCESO con plazo vigente del mismo tipo y fecha efectiva.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               examples:
-                sinConfirmar:
-                  $ref: '#/components/examples/ErrorIntentoSinConfirmar'
+                enProceso:
+                  $ref: '#/components/examples/ErrorIntentoEnProceso'
         '422':
           description: Comentario de más de 500 caracteres, selección vacía o ninguna cuota apta.
           content:
@@ -2424,11 +2531,21 @@ paths:
         aptitud, tipo de aviso y destinatarios (RN-212, RN-213). Si los destinatarios cambiaron respecto de
         `firmaDestinatarios`, no envía y responde `409 DESTINATARIOS_CAMBIARON` con la nueva vista previa. Si alguna
         cuota tiene un aviso «Enviado» para la misma fecha efectiva y tipo, exige `confirmarReenvio: true`.
-        Por cada correo (contacto y tipo) guarda el intento SIN_CONFIRMAR con su contenido, cuotas y destinatarios
-        cifrados **antes** de llamar a Resend, con una clave de idempotencia propia; la comprobación de que no hay
-        otro intento sin confirmar de esas cuotas y el guardado son atómicos (RN-158). Luego registra ACEPTADO,
-        RECHAZADO o deja SIN_CONFIRMAR (tiempo de espera). Solo ACEPTADO marca las cuotas «Enviado». Sin reintentos
-        automáticos. `comentario`: opcional, TRIM, mayúsculas, máximo 500; solo espacios equivale a sin comentario.
+        Excluye cuotas no aptas con motivo; si no queda ninguna, responde 422 SIN_CUOTAS_APTAS sin guardar intentos
+        ni llamar a Resend. Una exclusión por sí sola no produce DESTINATARIOS_CAMBIARON: se comparan los
+        destinatarios confirmados de los grupos sobrevivientes (RN-136, RN-155).
+        Por cada correo (contacto y tipo) guarda EN_PROCESO, contenido, cuotas y destinatarios antes de
+        llamar a Resend. Bloquea las cuotas, cierra los intentos vencidos y comprueba atómicamente que no haya
+        otro EN_PROCESO con plazo vigente (409 INTENTO_EN_PROCESO). Cada intento tiene una clave propia y
+        venceEn interno = creadoEn + 10 s; la única llamada al proveedor usa el plazo restante (RN-158).
+        Una respuesta exitosa registrada dentro del plazo termina ENVIADO; rechazo, error o tiempo de espera
+        terminan NO_ENVIADO con motivo y liberan las cuotas. Cada intento manual nuevo utiliza otra clave, datos
+        y destinatarios vigentes. No hay verificación, espera adicional ni reintentos automáticos. Un tiempo de
+        espera no acredita que el proveedor no recibiera el correo; un intento posterior puede repetirlo (RN-067).
+        Una caída o fallo de escritura no deja bloqueo indefinido: tras vencer sin éxito registrado, las lecturas
+        proyectan NO_ENVIADO y el siguiente envío persiste el cierre antes de crear otro intento. Una respuesta
+        tardía no modifica un intento cerrado. Solo ENVIADO crea la marca; un fallo conserva marcas previas.
+        `comentario`: opcional, TRIM, mayúsculas, máximo 500; solo espacios equivale a sin comentario.
         En entornos de prueba todo correo se redirige al buzón de prueba (RN-013).
         **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
       x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
@@ -2446,10 +2563,9 @@ paths:
                   comentario: "Favor confirmar fecha de pago"
                   firmaDestinatarios: "fd_1b9e6c2a7d4f"
                   confirmarReenvio: true
-                  aceptarAdvertenciaNoVerificable: false
       responses:
         '201':
-          description: Intentos registrados con su resultado.
+          description: Intentos registrados con su resultado, incluso NO_ENVIADO por rechazo, error o tiempo de espera. Un 201 no implica que todos los correos se hayan enviado.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/RespuestaEnvioAviso' }
@@ -2458,7 +2574,8 @@ paths:
                   value:
                     intentos:
                       - id: 3001
-                        estado: ACEPTADO
+                        estado: ENVIADO
+                        motivoNoEnvio: null
                         tipoAviso: COBRAR_VENCIDA
                         contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
                         cuotas:
@@ -2472,13 +2589,32 @@ paths:
                         creadoPor: { id: 15, correo: luis.ramos@example.com }
                         creadoEn: "2026-11-07T09:05:00-05:00"
                         resueltoEn: "2026-11-07T09:05:01-05:00"
-                        verificableHasta: "2026-11-08T09:05:00-05:00"
+                    cuotasExcluidas: []
+                tiempoEspera:
+                  value:
+                    intentos:
+                      - id: 3004
+                        estado: NO_ENVIADO
+                        motivoNoEnvio: TIEMPO_ESPERA
+                        tipoAviso: COBRAR_VENCIDA
+                        contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
+                        cuotas:
+                          - { cuotaId: 9002, numeroDocumento: F001-00045, numeroCuota: 2, fechaEfectivaVencimiento: "2026-11-03", moneda: PEN, saldoAlEnvio: "1000.00" }
+                        comentario: null
+                        destinatarios:
+                          para: [ventas.distlima@example.com]
+                          copias: [admin.andina@example.com]
+                          responderA: admin.andina@example.com
+                        creadoPor: { id: 15, correo: luis.ramos@example.com }
+                        creadoEn: "2026-11-07T09:10:00-05:00"
+                        resueltoEn: "2026-11-07T09:10:10-05:00"
                     cuotasExcluidas: []
                 rechazado:
                   value:
                     intentos:
                       - id: 3002
-                        estado: RECHAZADO
+                        estado: NO_ENVIADO
+                        motivoNoEnvio: RECHAZO_PROVEEDOR
                         tipoAviso: COBRAR_VENCIDA
                         contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
                         cuotas:
@@ -2491,14 +2627,13 @@ paths:
                         creadoPor: { id: 15, correo: luis.ramos@example.com }
                         creadoEn: "2026-11-07T09:10:00-05:00"
                         resueltoEn: "2026-11-07T09:10:02-05:00"
-                        verificableHasta: "2026-11-08T09:10:00-05:00"
                     cuotasExcluidas:
                       - { cuotaId: 9002, motivo: CUOTA_CANCELADA }
         '400': { $ref: '#/components/responses/SolicitudInvalida' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
         '409':
-          description: Destinatarios cambiaron, reenvío sin confirmar, advertencia no aceptada o intento sin confirmar existente.
+          description: Destinatarios cambiaron, falta confirmar el reenvío o existe otro intento EN_PROCESO con plazo vigente.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorAviso' }
@@ -2519,15 +2654,14 @@ paths:
                             responderA: cobranzas.andina@example.com
                       cuotasExcluidas: []
                       cuotasConAvisoPrevio: []
-                      advertenciaNoVerificable: false
                       firmaDestinatarios: "fd_7c3a9e1b5d2f"
                 reenvioSinConfirmar:
                   value:
                     codigo: REENVIO_REQUIERE_CONFIRMACION
                     mensaje: Algunas cuotas ya tienen un aviso enviado. Confirma «Reenviar aviso».
                     idSolicitud: 0f4a5b6c-7d8e-4f9a-1b0c-2d3e4f5a6b71
-                sinConfirmar:
-                  $ref: '#/components/examples/ErrorIntentoSinConfirmar'
+                enProceso:
+                  $ref: '#/components/examples/ErrorIntentoEnProceso'
         '422':
           description: Comentario inválido o ninguna cuota apta (no se registra intento ni se envía correo).
           content:
@@ -2578,7 +2712,8 @@ paths:
                   value:
                     elementos:
                       - id: 3001
-                        estado: ACEPTADO
+                        estado: ENVIADO
+                        motivoNoEnvio: null
                         tipoAviso: COBRAR_VENCIDA
                         contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
                         cuotas:
@@ -2591,7 +2726,6 @@ paths:
                         creadoPor: { id: 15, correo: luis.ramos@example.com }
                         creadoEn: "2026-11-07T09:05:00-05:00"
                         resueltoEn: "2026-11-07T09:05:01-05:00"
-                        verificableHasta: "2026-11-08T09:05:00-05:00"
                     paginacion: { pagina: 1, tamanoPagina: 20, totalElementos: 1, totalPaginas: 1 }
         '400': { $ref: '#/components/responses/SolicitudInvalida' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
@@ -2602,8 +2736,9 @@ paths:
       tags: [Avisos]
       summary: Obtener un intento de aviso
       description: |
-        **HU-010.** Detalle de un intento de la bandeja interna. La SPA puede consultarlo con
-        `X-Peticion-Automatica: true` mientras está SIN_CONFIRMAR.
+        **HU-010.** Detalle de un intento de la bandeja interna, con su estado funcional y motivo de fallo.
+        Tras vencer el plazo sin éxito registrado se devuelve NO_ENVIADO; esta lectura no llama al proveedor
+        ni persiste el cierre. La SPA puede refrescar con `X-Peticion-Automatica: true` sin renovar la sesión.
         **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
       x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
       parameters:
@@ -2621,48 +2756,6 @@ paths:
         '400': { $ref: '#/components/responses/SolicitudInvalida' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
-
-  /avisos/intentos/{intentoId}/verificacion:
-    post:
-      operationId: verificarEnvioAviso
-      tags: [Avisos]
-      summary: Verificar un envío sin confirmar
-      description: |
-        **HU-010.** Acción del usuario (nunca automática) sobre un intento SIN_CONFIRMAR: repite la solicitud a
-        Resend con la misma clave de idempotencia, el mismo contenido y los mismos destinatarios guardados, sin
-        recalcular (RN-159). La interfaz advierte antes que, si Resend no recibió la original, el correo sale en ese
-        momento. Resultado en el mismo intento: ACEPTADO (marca «Enviado»), RECHAZADO, SIN_CONFIRMAR (nuevo tiempo de
-        espera) o NO_VERIFICABLE (vencida la ventana de 24 horas de la clave); en ese último caso el usuario puede
-        enviar un aviso nuevo con advertencia.
-        **Roles:** ADMINISTRADOR, SUPERVISOR, OPERADOR.
-      x-roles: [ADMINISTRADOR, SUPERVISOR, OPERADOR]
-      parameters:
-        - $ref: '#/components/parameters/IntentoId'
-        - $ref: '#/components/parameters/TokenCsrf'
-      responses:
-        '200':
-          description: Intento verificado con su nuevo estado.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/IntentoAviso' }
-              examples:
-                aceptado:
-                  $ref: '#/components/examples/IntentoAceptado'
-        '400': { $ref: '#/components/responses/SolicitudInvalida' }
-        '401': { $ref: '#/components/responses/NoAutenticado' }
-        '404': { $ref: '#/components/responses/NoEncontrado' }
-        '409':
-          description: El intento no está SIN_CONFIRMAR.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-              examples:
-                yaResuelto:
-                  value:
-                    codigo: ESTADO_NO_PERMITE_OPERACION
-                    mensaje: El intento ya tiene un resultado y no requiere verificación.
-                    idSolicitud: 1a5b6c7d-8e9f-4a0b-2c1d-3e4f5a6b7c80
-        '500': { $ref: '#/components/responses/ErrorInterno' }
 
 components:
   securitySchemes:
@@ -2772,7 +2865,10 @@ components:
                 mensaje: La solicitud no tiene el formato esperado.
                 idSolicitud: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
     NoAutenticado:
-      description: Sin sesión vigente (inexistente, vencida por inactividad o por plazo absoluto, o cerrada).
+      description: |
+        Sin sesión vigente (inexistente, vencida por inactividad o por plazo absoluto, o cerrada). Si la empresa
+        alcanzó su terminación contractual efectiva, la sesión se cierra en esa misma petición y el código es
+        `CONTRATO_TERMINADO` (RN-149, RN-152).
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -2782,6 +2878,24 @@ components:
                 codigo: SESION_NO_VIGENTE
                 mensaje: Tu sesión terminó. Inicia sesión nuevamente.
                 idSolicitud: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e
+            contratoTerminado:
+              value:
+                codigo: CONTRATO_TERMINADO
+                mensaje: El contrato de tu empresa con VenceYa terminó. Ya no es posible acceder.
+                idSolicitud: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6f
+    ContratoTerminado:
+      description: |
+        La empresa alcanzó su terminación contractual efectiva (`terminacion_efectiva_en` menor o igual que el
+        instante actual). Sin efectos: no crea sesión ni consume enlaces (RN-101, RN-152).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            contratoTerminado:
+              value:
+                codigo: CONTRATO_TERMINADO
+                mensaje: El contrato de tu empresa con VenceYa terminó. Ya no es posible acceder.
+                idSolicitud: d4e5f6a7-b8c9-4d0e-8f1a-2b3c4d5e6f70
     PermisoDenegado:
       description: El rol del usuario no tiene permiso para la operación (RN-060). Sin efectos.
       content:
@@ -2913,7 +3027,8 @@ components:
     IntentoAceptado:
       value:
         id: 3001
-        estado: ACEPTADO
+        estado: ENVIADO
+        motivoNoEnvio: null
         tipoAviso: COBRAR_VENCIDA
         contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
         cuotas:
@@ -2927,7 +3042,23 @@ components:
         creadoPor: { id: 15, correo: luis.ramos@example.com }
         creadoEn: "2026-11-07T09:05:00-05:00"
         resueltoEn: "2026-11-07T09:05:01-05:00"
-        verificableHasta: "2026-11-08T09:05:00-05:00"
+    IntentoNoEnviadoTiempoEspera:
+      value:
+        id: 3004
+        estado: NO_ENVIADO
+        motivoNoEnvio: TIEMPO_ESPERA
+        tipoAviso: COBRAR_VENCIDA
+        contacto: { id: 42, nombre: DISTRIBUIDORA LIMA, estado: ACTIVO }
+        cuotas:
+          - { cuotaId: 9002, numeroDocumento: F001-00045, numeroCuota: 2, fechaEfectivaVencimiento: "2026-11-03", moneda: PEN, saldoAlEnvio: "1000.00" }
+        comentario: null
+        destinatarios:
+          para: [ventas.distlima@example.com]
+          copias: [admin.andina@example.com]
+          responderA: admin.andina@example.com
+        creadoPor: { id: 15, correo: luis.ramos@example.com }
+        creadoEn: "2026-11-07T09:10:00-05:00"
+        resueltoEn: "2026-11-07T09:10:10-05:00"
     ErrorDatosDesactualizados:
       value:
         codigo: DATOS_DESACTUALIZADOS
@@ -2950,12 +3081,12 @@ components:
         detalles:
           - { campo: motivo, codigo: CAMPO_OBLIGATORIO, mensaje: El motivo es obligatorio. }
         idSolicitud: 44556677-8899-4aab-bbcc-ddeeff001123
-    ErrorIntentoSinConfirmar:
+    ErrorIntentoEnProceso:
       value:
-        codigo: INTENTO_SIN_CONFIRMAR
-        mensaje: Hay un envío sin confirmar para estas cuotas. Usa «Verificar envío».
+        codigo: INTENTO_EN_PROCESO
+        mensaje: Hay un envío en proceso para estas cuotas. Intenta cuando termine.
         detalles:
-          - { campo: cuotaIds, codigo: INTENTO_EXISTENTE, mensaje: "Intento 3003 sin confirmar." }
+          - { campo: cuotaIds, codigo: INTENTO_EXISTENTE, mensaje: "Intento 3003 en proceso con plazo vigente." }
         idSolicitud: 55667788-99aa-4bbc-ccdd-eeff00112234
     ErrorSinCuotasAptas:
       value:
@@ -3055,7 +3186,8 @@ components:
       description: Maqueta fija según sentido y estado de la cuota (RN-114).
     EstadoIntento:
       type: string
-      enum: [SIN_CONFIRMAR, ACEPTADO, RECHAZADO, NO_VERIFICABLE]
+      enum: [EN_PROCESO, ENVIADO, NO_ENVIADO]
+      description: EN_PROCESO solo durante el plazo vigente del servidor; tras vencer sin éxito registrado se devuelve NO_ENVIADO, aunque el cierre persistente se recupere en el siguiente envío (RN-158).
     ResultadoEnvioCorreo:
       type: string
       enum: [ENVIADO, RECHAZADO, SIN_CONFIRMAR]
@@ -3670,10 +3802,113 @@ components:
         corte: { type: string, format: date-time }
         fechaCalculo: { type: string, format: date }
 
+    # ── Historial compartido de cuota (HU-017; RN-078) ──
+    HistorialCuota:
+      type: object
+      additionalProperties: false
+      required: [cuotaId, moneda, corte, fechaCalculo, eventos]
+      properties:
+        cuotaId: { type: integer, format: int64 }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        corte: { type: string, format: date-time }
+        fechaCalculo: { type: string, format: date }
+        eventos:
+          type: array
+          description: Todos los hechos conservados y las transiciones recalculadas, ordenados según RN-078.
+          items: { $ref: '#/components/schemas/EventoHistorialCuota' }
+    EventoHistorialCuota:
+      type: object
+      additionalProperties: false
+      required: [tipo, fechaHecho, registroId, registradaEn, registradaPor, importe, anulado, fechaAnterior, fechaNueva, cambios]
+      properties:
+        tipo:
+          type: string
+          enum: [EMISION, EDICION, REPROGRAMACION, PAGO, ANULACION_PAGO, VENCIDA, CANCELADA, REAPERTURA]
+        fechaHecho:
+          type: string
+          format: date
+          description: Fecha del hecho; pagos por fecha de pago, anulaciones/ediciones/reprogramaciones por su fecha de negocio en America/Lima, emisión por fecha de emisión y transiciones según RN-078.
+        registroId:
+          type: [integer, 'null']
+          format: int64
+          description: Identificador del registro de origen, interpretado junto con tipo; null para transiciones derivadas.
+        registradaEn:
+          type: [string, 'null']
+          format: date-time
+          description: Fecha/hora informativa de registro; obligatoria para hechos de usuario. Null en emisión sin dato de registro y transiciones derivadas.
+        registradaPor:
+          description: Actor del hecho; null para emisión sin dato y transiciones derivadas.
+          oneOf:
+            - { $ref: '#/components/schemas/ReferenciaUsuario' }
+            - { type: 'null' }
+        importe:
+          description: Importe del pago o de su anulación en la moneda de la cuota; null en los otros tipos.
+          oneOf:
+            - { $ref: '#/components/schemas/ImporteRespuesta' }
+            - { type: 'null' }
+        anulado:
+          type: boolean
+          description: True solo para un evento PAGO cuyo registro tiene anulación; el evento y su importe permanecen.
+        fechaAnterior: { type: [string, 'null'], format: date, description: Fecha efectiva previa a la reprogramación; null en los otros tipos. }
+        fechaNueva: { type: [string, 'null'], format: date, description: Nueva fecha prometida; null en los otros tipos. }
+        cambios:
+          type: array
+          description: Cambios por campo de EDICION, incluido el valor anterior y nuevo; vacío en otros tipos. Los valores personales solo se devuelven en esta consulta autorizada y nunca se registran en logs.
+          items:
+            type: object
+            additionalProperties: false
+            required: [campo, valorAnterior, valorNuevo]
+            properties:
+              campo: { type: string }
+              valorAnterior: { type: [string, 'null'] }
+              valorNuevo: { type: [string, 'null'] }
+      allOf:
+        - if:
+            properties: { tipo: { enum: [EDICION, REPROGRAMACION, PAGO, ANULACION_PAGO] } }
+          then:
+            properties:
+              registroId: { type: integer }
+              registradaEn: { type: string, format: date-time }
+              registradaPor: { $ref: '#/components/schemas/ReferenciaUsuario' }
+        - if:
+            properties: { tipo: { enum: [PAGO, ANULACION_PAGO] } }
+          then:
+            properties:
+              importe: { $ref: '#/components/schemas/ImporteRespuesta' }
+          else:
+            properties: { importe: { type: 'null' } }
+        - if:
+            properties: { tipo: { const: REPROGRAMACION } }
+          then:
+            properties:
+              fechaAnterior: { type: string, format: date }
+              fechaNueva: { type: string, format: date }
+          else:
+            properties:
+              fechaAnterior: { type: 'null' }
+              fechaNueva: { type: 'null' }
+        - if:
+            properties: { tipo: { const: EDICION } }
+          then:
+            properties: { cambios: { minItems: 1 } }
+          else:
+            properties: { cambios: { maxItems: 0 } }
+        - if:
+            properties: { tipo: { enum: [VENCIDA, CANCELADA, REAPERTURA] } }
+          then:
+            properties:
+              registroId: { type: 'null' }
+              registradaEn: { type: 'null' }
+              registradaPor: { type: 'null' }
+        - if:
+            properties: { tipo: { not: { const: PAGO } } }
+          then:
+            properties: { anulado: { const: false } }
+
     # ── Avisos ──
     CuotaPorAvisar:
       type: object
-      required: [cuotaId, comprobanteId, numeroDocumento, numeroCuota, sentido, contacto, moneda, saldo, fechaEfectivaVencimiento, estado, diasAtraso, tipoAviso, ultimoAviso, intentoSinConfirmarId, promesaActiva]
+      required: [cuotaId, comprobanteId, numeroDocumento, numeroCuota, sentido, contacto, moneda, saldo, fechaEfectivaVencimiento, estado, diasAtraso, tipoAviso, ultimoAviso, estadoAviso, intentoEnProcesoId, promesaActiva]
       properties:
         cuotaId: { type: integer, format: int64 }
         comprobanteId: { type: integer, format: int64 }
@@ -3696,9 +3931,10 @@ components:
                 enviadoPor: { $ref: '#/components/schemas/ReferenciaUsuario' }
                 mismaFechaYTipo: { type: boolean, description: true → exige confirmar «Reenviar aviso». }
             - type: 'null'
-        intentoSinConfirmarId: { type: [integer, 'null'], format: int64 }
+        estadoAviso: { type: string, enum: [ENVIANDO, ENVIADO, NO_ENVIADO], description: 'ENVIANDO si hay plazo vigente; ENVIADO si hay éxito para el tipo y vencimiento vigentes; NO_ENVIADO en otro caso. Un fallo posterior conserva el éxito previo.' }
+        intentoEnProcesoId: { type: [integer, 'null'], format: int64, description: Solo mientras el plazo del intento sigue vigente; null después del cierre o vencimiento. }
         promesaActiva:
-          description: Solo con S1 entregada; null en el MVP.
+          description: Solo con S1 entregada y promesa clasificada ACTIVA al corte de la consulta; visible para todos los roles de su empresa. Null sin S1 o si no hay promesa activa.
           oneOf:
             - type: object
               required: [fechaPrometida, registradaPor]
@@ -3734,7 +3970,7 @@ components:
         comentario: { type: [string, 'null'], description: 'Opcional; TRIM y MAYÚSCULAS; máximo 500; solo espacios = sin comentario.' }
     VistaPreviaAviso:
       type: object
-      required: [correos, cuotasExcluidas, cuotasConAvisoPrevio, advertenciaNoVerificable, firmaDestinatarios]
+      required: [correos, cuotasExcluidas, cuotasConAvisoPrevio, firmaDestinatarios]
       properties:
         correos:
           type: array
@@ -3758,8 +3994,7 @@ components:
               cuotaId: { type: integer, format: int64 }
               enviadoEn: { type: string, format: date-time }
               enviadoPor: { $ref: '#/components/schemas/ReferenciaUsuario' }
-        advertenciaNoVerificable: { type: boolean, description: true si alguna cuota tiene un intento NO_VERIFICABLE (RN-159). }
-        firmaDestinatarios: { type: string, description: 'Firma opaca del servidor sobre cuotas, tipos y destinatarios vigentes.' }
+        firmaDestinatarios: { type: string, description: 'Firma opaca del servidor sobre la selección, tipos y destinatarios mostrados; permite validar los destinatarios de los grupos sobrevivientes sin invalidarse solo por excluir cuotas no aptas.' }
     CuotaExcluida:
       type: object
       required: [cuotaId, motivo]
@@ -3780,7 +4015,6 @@ components:
         comentario: { type: [string, 'null'] }
         firmaDestinatarios: { type: string }
         confirmarReenvio: { type: boolean, default: false }
-        aceptarAdvertenciaNoVerificable: { type: boolean, default: false }
     CuotaAvisada:
       type: object
       required: [cuotaId, numeroDocumento, numeroCuota, fechaEfectivaVencimiento, moneda, saldoAlEnvio]
@@ -3793,7 +4027,7 @@ components:
         saldoAlEnvio: { $ref: '#/components/schemas/ImporteRespuesta' }
     IntentoAviso:
       type: object
-      required: [id, estado, tipoAviso, contacto, cuotas, comentario, destinatarios, creadoPor, creadoEn, resueltoEn, verificableHasta]
+      required: [id, estado, tipoAviso, contacto, cuotas, comentario, destinatarios, creadoPor, creadoEn, resueltoEn, motivoNoEnvio]
       properties:
         id: { type: integer, format: int64 }
         estado: { $ref: '#/components/schemas/EstadoIntento' }
@@ -3804,8 +4038,11 @@ components:
         destinatarios: { $ref: '#/components/schemas/Destinatarios' }
         creadoPor: { $ref: '#/components/schemas/ReferenciaUsuario' }
         creadoEn: { type: string, format: date-time }
-        resueltoEn: { type: [string, 'null'], format: date-time }
-        verificableHasta: { type: string, format: date-time, description: creadoEn + 24 horas (ventana de idempotencia de Resend). }
+        resueltoEn: { type: [string, 'null'], format: date-time, description: Instante de cierre; al proyectar un intento vencido sin cierre persistente es creadoEn + 10 s. }
+        motivoNoEnvio:
+          type: [string, 'null']
+          enum: [RECHAZO_PROVEEDOR, TIEMPO_ESPERA, ERROR_COMUNICACION, ERROR_REGISTRO, INTERRUPCION_PROCESO, null]
+          description: Obligatorio y no nulo en NO_ENVIADO; null en EN_PROCESO o ENVIADO. Un vencimiento sin resultado registrado se proyecta con TIEMPO_ESPERA.
     RespuestaEnvioAviso:
       type: object
       required: [intentos, cuotasExcluidas]

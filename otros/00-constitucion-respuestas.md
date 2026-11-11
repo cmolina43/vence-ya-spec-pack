@@ -47,6 +47,9 @@
   - el agente no tiene permitido enviar notificaciones reales a los clientes, pero para un entorno de pruebas, se podria usar una cuenta de correo definida por el usuario, por ahora no tenemos cobertura al envio de notifgicaciones por Whatsapp, Telegram, SMS, solo estara disponible el envio de notificacion por correo electronico y la visibilidad de las notificaciones a traves del sistema.
 
 7. Calidad y testing
+
+> **Actualización (2026-11-10, E-014):** se retira la aprobación humana específica de los casos de referencia. Se mantienen pruebas automáticas trazables a las reglas de negocio, determinismo y cobertura mínima del 80 % en módulos de dominio. La aceptación humana se realiza sobre el aplicativo por historia o entrega y se conserva la revisión humana de cada merge. Las preguntas originales siguientes se conservan como antecedente.
+
 - ¿Cobertura mínima de tests exigida? (Por ejemplo, 80% en lógica de negocio.)
 - ¿Los cálculos financieros (saldos, intereses, mora) requieren pruebas con casos de referencia aprobados por contabilidad?
 - ¿Revisión humana obligatoria para todo cambio, o solo para algunos módulos?

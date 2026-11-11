@@ -1,71 +1,84 @@
 # 06 - Diseño de seguridad de datos
 
-Decisión A-20 aprobada el 2026-11-06. Complementa PRINCIPIO-004, RN-011, RN-139 a RN-143 y sus obligaciones extraídas por QA2-31: RN-189 a RN-192 y RN-216 a RN-253. Especifica el diseño; no acredita una implementación ni pruebas ejecutadas.
+Decisión E-015 aprobada el 2026-11-10; sustituye el diseño de cifrado de A-20 (E-005). Complementa PRINCIPIO-004, PRINCIPIO-005, RN-139 a RN-141, RN-143, RN-216 a RN-218, RN-221, RN-222, RN-225, RN-227, RN-228, RN-230, RN-240, RN-243 a RN-253 y RN-262 a RN-266. Especifica el diseño; no acredita una implementación ni pruebas ejecutadas.
 
-## Alcance
+Este documento sirve de base para el documento de seguridad del art. 47 del D.S. 016-2024-JUS. Ese documento debe aprobarse formalmente con fecha cierta e incluir los procedimientos organizativos pendientes en las preguntas 26, 31 y 41; este archivo por sí solo no lo sustituye.
 
-| Entidad | Campos cifrados | Comparación requerida |
-|---|---|---|
-| Contacto | Correo; teléfono y dirección cuando existan | Correo normalizado, único dentro de su empresa, incluidos desactivados |
-| Empresa | RUC y correo administrativo | RUC de 11 dígitos, único globalmente |
-| Usuario | Correo de acceso | Correo normalizado, único globalmente en todos los estados |
+## Inventario de datos personales y sistemas
 
-Las copias persistidas de estos valores en auditorías, historiales y destinatarios de avisos también se cifran. Los contactos no registran DNI ni RUC. El correo administrativo no requiere un índice de búsqueda por esta decisión. No se agregan búsquedas parciales por correo o RUC ni se restringen las búsquedas por nombre. Los datos se descifran solo para usos funcionales autorizados; siguen vigentes los permisos y el aislamiento por empresa.
+| Entidad o copia | Datos personales | Titulares | Comparación requerida |
+|---|---|---|---|
+| Contacto | Nombre; correo; teléfono y dirección cuando existan; información económica vinculada (comprobantes, cuotas, saldos, pagos y avisos) | Clientes y proveedores personas naturales y personas de contacto de empresas | Correo normalizado, único dentro de su empresa, incluidos desactivados |
+| Empresa | RUC y razón social cuando identifican a una persona natural con negocio; correo administrativo | Empresa cliente o su titular | RUC de 11 dígitos, único globalmente |
+| Usuario | Correo de acceso; rol y estado; hash de contraseña | Usuarios de las empresas clientes | Correo normalizado, único globalmente en todos los estados |
+| Copias | Historial de ediciones, eventos de auditoría, destinatarios de avisos y contenido de los avisos (nombre e importes) | Los mismos titulares | No aplica |
+| Registros de acceso | Ninguno: solo identificadores internos, acción y fecha y hora (RN-264) | Usuarios, indirectamente por su identificador | No aplica |
 
-## Cifrado y almacenamiento
+No se tratan datos sensibles. Los contactos no registran DNI ni RUC (RN-126) y no se guardan números de cuenta ni CCI (RN-006). Sistemas que tratan los datos en la modalidad en la nube: Neon (base de datos y respaldos, `us-east-1`), Railway (backend, frontend y secretos, US East) y Resend (envío de correos; recibe nombres, correos e importes de los avisos). El flujo transfronterizo hacia Estados Unidos se revisa en la pregunta 31.
 
-Referencias: RN-011 y RN-189 a RN-192.
+## Medidas de protección
 
-Usar AES-256-GCM mediante una biblioteca criptográfica mantenida. Guardar por valor: texto cifrado, identificador de clave, versión del formato, IV de 96 bits y etiqueta de autenticación de 128 bits. Asegurar que el IV no se repita bajo la misma clave, también entre procesos y después de restaurar respaldos.
+Referencias: PRINCIPIO-004, E-015.
 
-El IV se genera aleatoriamente con un generador criptográfico en cada operación de cifrado; no se usan contadores ni valores derivados del registro. Cada versión de clave admite como máximo 2³² operaciones de cifrado (NIST SP 800-38D para IV aleatorios). El sistema cuenta las operaciones por versión de clave y exige rotar antes de alcanzar el límite. Con el volumen previsto (supuesto S7, unas 80 operaciones al mes por empresa) el límite queda muy por encima del uso, pero el contador debe existir y probarse.
+No se aplica cifrado por campo en la aplicación: el reglamento no lo exige y la protección se basa en el aislamiento por empresa con RLS (PRINCIPIO-003), los permisos por rol (RN-060), la trazabilidad de accesos (RN-263 a RN-266), TLS 1.2 o superior y la custodia de las credenciales de base de datos. En la modalidad en la nube se asume el cifrado en reposo del almacenamiento de Neon; se verifica en su documentación antes del lanzamiento (pregunta 26). En la modalidad local, el cifrado del disco y de los respaldos lo decide la empresa cliente y se le recomienda.
 
-Vincular mediante datos autenticados adicionales el ambiente, la entidad, el identificador estable del registro, el campo y la empresa cuando corresponda. Un cambio de contexto o una etiqueta inválida debe impedir el descifrado. No usar cifrado determinista con un IV fijo para permitir búsquedas. No persistir valores normalizados en texto plano como auxiliares.
+Una copia de la base o de un respaldo contiene los datos personales en claro. Por eso el acceso directo a la base de producción se limita al personal operativo habilitado, con credenciales propias y separadas por ambiente, y nunca se copian datos reales a desarrollo, pruebas, fixtures o prompts (PRINCIPIO-005).
 
 ## Comparaciones exactas
 
-Referencias: RN-139, RN-140 y RN-216 a RN-226.
+Referencias: RN-139, RN-140, RN-216 a RN-218, RN-221, RN-222 y RN-225.
 
-La normalización quita espacios exteriores y convierte el correo a minúsculas; no elimina puntos ni sufijos con signo +. Usar una única función versionada en altas, cambios y autenticación. Tratar el RUC como cadena de 11 dígitos sin conversión numérica.
+La normalización quita espacios exteriores y convierte el correo a minúsculas; no elimina puntos ni sufijos con signo +. Usar una única función en altas, cambios, autenticación y recuperación, y guardar el correo ya normalizado. Tratar el RUC como cadena de 11 dígitos sin conversión numérica.
 
-Calcular HMAC-SHA-256 completo sobre una codificación inequívoca de una tupla con versión, ambiente, propósito, ámbito y valor normalizado. Usar una clave de búsqueda distinta de la de cifrado. Propósitos separados: correo de contacto, correo de usuario y RUC de empresa. Para contactos, el ámbito incluye el identificador de empresa; para usuarios y empresas es global.
-
-Guardar referencia y versión de clave en una estructura indexable. Exigir unicidad por propósito, ámbito y versión de clave. Las referencias revelan igualdad dentro de su ámbito: son información protegida, no anonimización. No devolverlas a clientes ni registrarlas en logs.
-
-Registrar o editar el dato cifrado y sus referencias en una transacción. Las restricciones únicas deben impedir carreras entre solicitudes; una comprobación previa por sí sola no basta. Al editar se excluye el propio registro de la comprobación de duplicados.
+La unicidad la garantizan índices únicos de PostgreSQL: `usuarios (correo)` y `empresas (ruc)` globales, y `contactos (empresa_id, correo)`. Una restricción `CHECK` impide guardar un correo sin normalizar. Las restricciones únicas impiden carreras entre solicitudes; una comprobación previa por sí sola no basta. Al editar se excluye el propio registro de la comprobación de duplicados.
 
 ## Inicio de sesión
 
-1. Normalizar el correo ingresado y calcular su referencia de usuario.
+1. Normalizar el correo ingresado.
 2. Localizar la cuenta sin filtrar por una empresa suministrada por el solicitante; el correo de usuario es globalmente único.
 3. Verificar contraseña y estado ACTIVO; aplicar las restricciones de acceso vigentes.
 4. Establecer la empresa desde la cuenta autenticada. Todas las consultas posteriores a contactos quedan limitadas a esa empresa.
+5. Registrar el inicio de sesión en los registros de acceso (RN-263).
 
 No solicitar RUC ni correo administrativo. La recuperación de acceso usa la misma localización por correo. No exponer si un correo pertenece a otra empresa en mensajes de autenticación o de recuperación.
 
 ## Autorización y cambios de rol
 
-Aplicar en el servidor la matriz de RN-060: comprobar sesión vigente, rol, empresa y propiedad de las preferencias personales. Los roles de negocio no conceden acceso a claves (RN-230) ni facultan omitir validaciones de negocio.
+Aplicar en el servidor la matriz de RN-060: comprobar sesión vigente, rol, empresa y propiedad de las preferencias personales. Los roles de negocio no conceden acceso a secretos (RN-230) ni facultan omitir validaciones de negocio.
 
 Todo cambio efectivo de rol cierra las sesiones del afectado en todos sus dispositivos y pestañas, incluso si gana permisos o cambia su propio rol. Guardar el mismo rol no exige este cierre. El rol, la invalidación y la auditoría se guardan como una unidad (RN-161 y RN-160), protegiendo al último administrador activo (RN-100). El nuevo rol se usa tras un nuevo inicio de sesión. El servidor rechaza las credenciales de sesiones anteriores desde la confirmación del cambio; su fecha de vencimiento original no puede mantenerlas válidas.
 
 Ordenar consistentemente el cambio y las operaciones concurrentes que modifican registros: si la operación se completa primero, conserva sus efectos válidos; si el cambio se completa primero, la operación de la sesión anterior se rechaza sin efectos de negocio. No basta comprobar permisos al recibir la solicitud ni ocultar botones. Verificar con los casos de aceptación del cierre QA2-15.
 
-## Contraseñas
+El reglamento exige verificar los privilegios asignados al menos cada seis meses (art. 46). Esa revisión es un procedimiento organizativo del documento de seguridad (pregunta 31); la aplicación ya permite al ADMINISTRADOR consultar los usuarios de su empresa y sus roles.
 
-Referencias: RN-143 y RN-243 a RN-253.
+## Contraseñas y tokens
+
+Referencias: RN-143, RN-243 a RN-253 y RN-262.
 
 Usar Argon2id con sal aleatoria individual generada por la biblioteca. Guardar el hash codificado con su sal, versión y parámetros; como base mínima, 19 MiB de memoria, 2 iteraciones y paralelismo 1. Medir el costo en el ambiente de despliegue y aumentarlo si es viable; no disminuir esa base sin revisión del diseño. No aplicar al secreto la normalización de correos. Un cambio o recuperación genera un nuevo hash, nunca recupera el anterior.
 
-## Custodia y rotación
+Los tokens de sesión, invitación y recuperación son aleatorios de 256 bits, generados con un generador criptográfico. En la base solo se guarda su SHA-256; el valor original viaja únicamente en la cookie o en el enlace enviado.
 
-Referencias: RN-141, RN-142 y RN-227 a RN-242.
+## Trazabilidad de accesos
 
-El equipo operativo de VenceYa administra un gestor externo de secretos o claves. Separar producción, pruebas y desarrollo, y claves de cifrado y búsqueda. Autorizar al servicio por identidad y mínimo privilegio; los roles ADMINISTRADOR, SUPERVISOR y OPERADOR no conceden acceso al gestor. Auditar operaciones administrativas sin incluir secretos.
+Referencias: PRINCIPIO-005, RN-263 a RN-266; art. 46 del D.S. 016-2024-JUS.
 
-Para cifrado: nuevas escrituras usan la versión nueva; las lecturas eligen la versión guardada. Migrar en lotes verificables sin cambiar el valor de negocio. Para búsqueda: desplegar lectura de ambas versiones y escritura de ambas referencias, manteniendo la referencia antigua obligatoria para toda escritura mientras se completa la nueva. Rellenar las referencias nuevas, verificar cobertura y unicidad, pasar las consultas a la nueva versión y retirar la anterior solo después de que todos los escritores y registros usen la nueva. No habilitar escritores que produzcan solo una versión incompatible con los demás.
+Un interceptor común escribe en `registros_acceso` el inicio y cierre de sesión y cada consulta, alta, edición, anulación, eliminación o exportación de contactos, comprobantes, cuotas, pagos, avisos o usuarios. Cada fila guarda usuario, empresa, acción, entidad o recurso, identificador afectado cuando existe y fecha y hora; nunca datos personales, importes, criterios de búsqueda ni textos libres. En las escrituras se guarda en la misma transacción que el cambio; en las consultas y exportaciones, antes de entregar la respuesta. Si la escritura falla, la operación no se completa.
 
-Conservar las claves necesarias para respaldos retenidos bajo acceso controlado. Una restauración se realiza aislada, valida versiones, reconstruye referencias y migra antes de abrir el servicio. Además, debe completar el control manual de bajas contractuales descrito a continuación (RN-152; QA2-11). Conservar el formato de normalización utilizado o proporcionar una migración explícita. Ante compromiso, restringir acceso a la versión afectada, activar sustitución y migración; no mantenerla disponible para uso ordinario solo por compatibilidad.
+La aplicación solo inserta: un trigger rechaza UPDATE y DELETE, y ningún rol de negocio los consulta. Se conservan al menos dos años y están disponibles de inmediato para el personal operativo, que los consulta directamente en la base. Al cumplirse el plazo pueden eliminarse mediante un procedimiento operativo documentado. Como no contienen datos personales, la baja contractual no los elimina antes de los dos años; esta conservación se confirma en la revisión legal (pregunta 31).
+
+## Secretos
+
+Referencias: RN-141, RN-227, RN-228 y RN-230.
+
+Los secretos (clave de firma de sesiones, clave de Resend y credenciales de base de datos) se generan con aleatoriedad criptográfica cuando los genera el equipo, se custodian en variables de entorno fuera de PostgreSQL y del repositorio, y se separan por ambiente. Solo el servicio autorizado y el personal operativo habilitado acceden a ellos; los roles ADMINISTRADOR, SUPERVISOR y OPERADOR no conceden ese acceso. El escáner de secretos en CI impide subirlos al repositorio (PRINCIPIO-011). Ante la sospecha de compromiso de un secreto, se reemplaza y se invalidan las sesiones afectadas, según el procedimiento de incidentes pendiente en la pregunta 26.
+
+## Respaldos y recuperación
+
+Referencias: RN-240; art. 51 del D.S. 016-2024-JUS.
+
+Los respaldos se realizan con frecuencia mínima semanal y se verifica su integridad. En la nube los realiza Neon dentro de la ventana de restauración de su plan; en la modalidad local los responsables se definen en la pregunta 41. Una prueba de recuperación restaura un respaldo en una base aislada y verifica la integridad de los datos, el inicio de sesión de un usuario y la unicidad de correos y RUC antes de darlo por válido. Toda restauración que vaya a habilitarse completa además el control manual de bajas contractuales descrito a continuación (RN-152; QA2-11).
 
 ## Permisos de eliminación y baja contractual
 
@@ -84,39 +97,44 @@ Decisión del usuario (2026-11-07; QA2-11). El responsable autorizado de la rest
 5. Registrar el respaldo utilizado, la revisión del registro vigente, las referencias internas de las bajas reaplicadas o la ausencia de bajas que reaplicar, el resultado, la fecha y el responsable. Hacer una revisión final del registro antes de abrir; cualquier baja ejecutada durante la recuperación debe quedar cubierta.
 6. Habilitar accesos y trabajadores solo tras completar satisfactoriamente la revisión. Si falla una eliminación o verificación, mantener la restauración aislada y corregir o repetir el procedimiento.
 
-Los respaldos originales no se depuran registro por registro: caducan conforme a su retención. El control se realiza sobre las copias restauradas antes de habilitarlas y no concede a la empresa dada de baja una opción de recuperación. Las solicitudes de eliminación de datos personales de RN-151 siguen sujetas al procedimiento pendiente de la pregunta 31; esta decisión no lo define.
+Los respaldos originales no se depuran registro por registro: caducan conforme a su retención. El control se realiza sobre las copias restauradas antes de habilitarlas y no concede a la empresa dada de baja una opción de recuperación. Las solicitudes formales de eliminación de datos personales (RN-151, RN-257) son gestionadas internamente por el equipo de VenceYa, en coordinación con la empresa cliente, fuera del alcance funcional y del backlog de desarrollo (M-11, decisión del usuario del 2026-11-10). La definición operativa y revisión legal permanecen pendientes antes del lanzamiento en la pregunta 31; este diseño de restauración de bajas contractuales no las resuelve. El cierre documental de M-11 no acredita ese procedimiento como operativo.
 
 ## Parámetros operativos por modalidad
 
-Decididos el 2026-11-06 (pregunta 26):
+Decididos el 2026-11-06 (pregunta 26) y ajustados por E-015 (2026-11-10):
 
 | Parámetro | En la nube | Local (on-premise) |
 |---|---|---|
-| Gestor de secretos | Variables de entorno de Railway, en un entorno de Railway separado para producción, pruebas y desarrollo, con claves distintas por propósito (cifrado y búsqueda). | Pendiente (pregunta 41). |
-| Rotación | Como máximo cada 12 meses, o antes si se acerca el límite de uso o ante sospecha de compromiso. | Igual que en la nube. |
-| Asignación de IV y límite de uso | IV aleatorio de 96 bits; máximo 2³² cifrados por versión de clave. | Igual que en la nube. |
-| Retención de respaldos | La ventana de restauración del plan contratado en Neon. Las claves necesarias para esa ventana se conservan según RN-239. | La define la empresa (RN-150); pendiente cómo se custodian las claves de sus respaldos (pregunta 41). |
+| Secretos | Variables de entorno de Railway, en un entorno separado para producción, pruebas y desarrollo. | Pendiente (pregunta 41). |
+| Cifrado en reposo | Supuesto: almacenamiento de Neon cifrado por el proveedor; se verifica antes del lanzamiento (pregunta 26). | Recomendado; lo decide la empresa cliente. |
+| Respaldos | La ventana de restauración del plan contratado en Neon, con frecuencia al menos semanal. | Responsables y frecuencia pendientes (pregunta 41); al menos semanal. |
+| Registros de acceso | Al menos dos años en la base de datos de producción. | Igual que en la nube. |
 
-Siguen pendientes (pregunta 26) quién administra los secretos, el procedimiento ante incidentes y la verificación de que Railway permite auditar los accesos y cambios de variables, como exigen RN-232 y RN-233. Si no lo permite, debe definirse un control complementario. Si el gestor no está disponible, rechazar la operación dependiente sin guardar datos en claro.
+## Pendientes organizativos
+
+Se concretan antes de producción y forman parte del documento de seguridad o de los procedimientos del equipo; no son funcionalidades por desarrollar:
+
+- Pregunta 26: quién administra los secretos y el procedimiento ante incidentes de seguridad de datos personales (documentación de todo incidente, aviso inmediato a la empresa cliente cuando VenceYa actúa como encargado y notificación a la ANPD dentro de 48 horas en los supuestos del art. 34).
+- Pregunta 31: documento de seguridad aprobado con fecha cierta, revisión semestral de privilegios, inscripción de bancos de datos, flujo transfronterizo, procedimiento de derechos ARCO con sus plazos y aviso de privacidad.
+- Pregunta 41: secretos y respaldos de la modalidad local.
 
 ## Criterios de aceptación
 
-- El almacenamiento y sus copias históricas no contienen los campos protegidos en texto plano.
 - El mismo correo normalizado se acepta como contacto en empresas distintas y se rechaza como segundo contacto en la misma, incluso con solicitudes concurrentes.
-- Correos de usuarios duplicados y RUC duplicados se rechazan globalmente.
-- El acceso funciona con correo cifrado, espacios exteriores y diferencias de mayúsculas; no pide empresa ni RUC y rechaza usuarios no activos.
+- Correos de usuarios duplicados y RUC duplicados se rechazan globalmente por índice único.
+- El acceso funciona con espacios exteriores y diferencias de mayúsculas en el correo; no pide empresa ni RUC y rechaza usuarios no activos.
 - Recuperación y registro de usuarios aplican la misma normalización.
-- Cambiar etiqueta, texto cifrado o contexto autenticado impide el descifrado.
-- La falta de claves no activa almacenamiento en claro ni revela datos en errores.
-- La rotación mantiene lectura, acceso y unicidad mientras conviven versiones y tras retirar la anterior.
-- Un respaldo anterior a la rotación se restaura de forma aislada y queda utilizable tras migrar.
 - Dos contraseñas iguales generan hashes distintos y ambas se verifican correctamente.
-- Con el rol de la aplicación, un DELETE sobre un pago o una anulación se rechaza.
-- El procedimiento de baja elimina todos los datos de una empresa y no cambia los de otra, dentro de los 30 días desde la terminación efectiva; no exige registro de exportación ni confirmación de descarga o recepción. La empresa es responsable de exportar los históricos disponibles antes del bloqueo, mediante las funciones existentes (QA2-12; E-011).
+- La base guarda solo el hash de los tokens de sesión, invitación y recuperación; un token recibido se valida por su hash.
+- Cada inicio y cierre de sesión y cada consulta, alta, edición, anulación, eliminación o exportación de datos personales genera su registro de acceso, sin datos personales; si el registro falla, la operación no se completa.
+- Con el rol de la aplicación, un UPDATE o DELETE sobre un registro de acceso, un pago o una anulación se rechaza.
+- Ningún secreto está en la base de datos ni en el repositorio; producción y pruebas usan secretos distintos.
+- Un respaldo restaurado en una base aislada conserva la integridad de los datos, permite iniciar sesión y mantiene la unicidad.
+- El procedimiento de baja elimina todos los datos de negocio de una empresa y no cambia los de otra, dentro de los 30 días desde la terminación efectiva; no exige registro de exportación ni confirmación de descarga o recepción. La empresa es responsable de exportar los históricos disponibles antes del bloqueo, mediante las funciones existentes (QA2-12; E-011).
 - Una respuesta de error del API por un pago que supera el saldo no contiene importes, y el log tampoco.
 - Restaurar un respaldo anterior a una baja no restablece datos, acceso ni avisos de esa empresa: se revisa el registro externo, se reaplica la baja y se deja constancia antes de habilitar el servicio.
 - Si el registro externo no está disponible o la reaplicación falla, la copia permanece aislada; repetir el procedimiento no afecta a otras empresas ni falla porque una empresa ya esté ausente.
 
-## Referencias técnicas
+## Referencias técnicas y normativas
 
-La elección de cifrado autenticado, la separación de claves y su custodia se apoya en [OWASP: Cryptographic Storage](https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html). El almacenamiento de contraseñas y la configuración base de Argon2id se apoyan en [OWASP: Password Storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html). Los ámbitos de unicidad son decisiones de VenceYa establecidas en RN-096, RN-097 y RN-127.
+Las medidas de seguridad, la trazabilidad, el documento de seguridad, los respaldos y la notificación de incidentes siguen el [D.S. 016-2024-JUS, Reglamento de la Ley 29733](https://www3.congreso.gob.pe/Docs/DGP/DIDP/files/ds_016-2024-jus.pdf) (art. 34 a 36 y 46 a 52). El almacenamiento de contraseñas y la configuración base de Argon2id se apoyan en [OWASP: Password Storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html). Los ámbitos de unicidad son decisiones de VenceYa establecidas en RN-096, RN-097 y RN-127.
