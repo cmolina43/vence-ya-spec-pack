@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P-004 Comprobantes · VenceYa</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+<!-- Controles del prototipo (no forman parte de la pantalla) -->
+<details class="demo" open>
+  <summary>Controles del prototipo (solo para validar con stakeholders)</summary>
+  <div class="demo-grid">
+    <fieldset>
+      <legend>Estado de la pantalla</legend>
+      <label><input type="radio" name="demo-estado" value="datos" checked> Con datos</label>
+      <label><input type="radio" name="demo-estado" value="vacio"> Vacío (sin comprobantes)</label>
+      <label><input type="radio" name="demo-estado" value="cargando"> Cargando</label>
+      <label><input type="radio" name="demo-estado" value="error"> Error</label>
+    </fieldset>
+    <fieldset>
+      <legend>Tema</legend>
+      <label>Tema
+        <select id="demo-tema"><option value="auto">Según el sistema</option><option value="claro">Claro</option><option value="oscuro">Oscuro</option></select>
+      </label>
+    </fieldset>
+  </div>
+  <p class="demo-tip">Pruebas sugeridas: activar «Incluir comprobantes anulados» (RN-049: filas ANULADO, sin saldo y fuera de los totales) · buscar «textiles» o «F001» · filtrar por moneda US$ · combinar pestaña + búsqueda sin resultados.</p>
+</details>
+
+<header class="topbar">
+  <button class="btn btn-ghost btn-icono menu-btn" id="btn-menu" aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="sidebar">☰</button>
+  <div class="logo"><span class="logo-marca" aria-hidden="true">V</span> VenceYa</div>
+  <div class="usuario"><span class="usuario-datos"><strong>Marcela Quispe</strong> · Operador</span>
+    <span class="empresa">Comercial Ríos S.A.C.</span></div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Navegación principal">
+    <ul>
+      <li><a href="#" data-nav="P-002 Panel de cartera">Panel de cartera</a></li>
+      <li><a href="#" aria-current="page">Comprobantes</a></li>
+      <li><a href="#" data-nav="P-007 Avisos de cobranza">Avisos</a></li>
+      <li><a href="#" data-nav="P-003 Contactos">Contactos</a></li>
+      <li><a href="#" data-nav="P-020 Configuración">Configuración</a></li>
+    </ul>
+  </nav>
+  <div class="backdrop" id="backdrop" hidden></div>
+
+  <main id="contenido" class="main" tabindex="-1">
+    <div class="page-head">
+      <h1>Comprobantes</h1>
+      <button class="btn btn-prim" id="btn-nuevo" type="button"><span aria-hidden="true">+</span> Registrar comprobante</button>
+    </div>
+    <p class="sr-only" id="anuncio" role="status" aria-live="polite"></p>
+
+    <div id="alerta-error" class="alert" role="alert" hidden>
+      <span aria-hidden="true" class="alert-ic">⚠</span>
+      <div>
+        <strong>No se pudo cargar la lista de comprobantes.</strong>
+        <p>Hubo un problema de conexión con el servidor. Tus datos no se han modificado. Código: COM-503.</p>
+      </div>
+      <button class="btn btn-sec" id="btn-reintentar" type="button">Reintentar</button>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="Sentido del comprobante" id="tabs">
+      <button class="tab" role="tab" id="tab-todos" data-sentido="todos" aria-selected="true" aria-controls="panel">Todos</button>
+      <button class="tab" role="tab" id="tab-cobrar" data-sentido="Cobrar" aria-selected="false" aria-controls="panel" tabindex="-1">Por cobrar</button>
+      <button class="tab" role="tab" id="tab-pagar" data-sentido="Pagar" aria-selected="false" aria-controls="panel" tabindex="-1">Por pagar</button>
+    </div>
+
+    <div id="panel" role="tabpanel" aria-labelledby="tab-todos" class="main" style="padding:0">
+      <div class="filtros" id="filtros">
+        <div class="campo campo-buscar">
+          <label for="f-buscar">Buscar</label>
+          <div class="buscar">
+            <input id="f-buscar" type="search" autocomplete="off" placeholder="Número o contacto">
+            <span class="buscar-ic" aria-hidden="true">🔍</span>
+          </div>
+        </div>
+        <div class="campo">
+          <label for="f-moneda">Moneda</label>
+          <select id="f-moneda">
+            <option value="todas">Todas</option>
+            <option value="PEN">S/ (soles)</option>
+            <option value="USD">US$ (dólares)</option>
+          </select>
+        </div>
+        <label class="chk"><input type="checkbox" id="f-anulados"><span>Incluir comprobantes anulados</span></label>
+      </div>
+
+      <div class="resumen" id="resumen" role="status"></div>
+
+      <div class="tabla-wrap" id="tabla-wrap">
+        <table class="tabla" id="tabla">
+          <caption class="sr-only">Comprobantes de la empresa</caption>
+          <thead>
+            <tr>
+              <th scope="col">Número</th>
+              <th scope="col">Sentido</th>
+              <th scope="col">Contacto</th>
+              <th scope="col">Emisión</th>
+              <th scope="col" class="num">Total</th>
+              <th scope="col" class="num">Saldo</th>
+              <th scope="col">Estado</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpo"></tbody>
+        </table>
+      </div>
+      <div class="vacio" id="vacio" role="status" hidden></div>
+
+      <nav class="paginacion" id="paginacion" aria-label="Paginación de comprobantes" hidden></nav>
+      <p class="nota">Los importes se muestran en su moneda original (RN-001); S/ y US$ nunca se suman. Los comprobantes anulados no entran en la cartera, los indicadores ni los avisos.</p>
+    </div>
+  </main>
+</div>
+
+<dialog id="dlg-nav" aria-labelledby="dlg-titulo">
+  <h2 id="dlg-titulo">Navegación simulada</h2>
+  <p id="dlg-texto"></p>
+  <p class="ayuda">Este prototipo solo muestra la pantalla P-004.</p>
+  <div class="dlg-acc"><button class="btn btn-prim" id="dlg-cerrar" type="button">Entendido</button></div>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>

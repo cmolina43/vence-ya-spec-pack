@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P-003 Contactos · VenceYa</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+<!-- Controles del prototipo (no forman parte de la pantalla) -->
+<details class="demo" open>
+  <summary>Controles del prototipo (solo para validar con stakeholders)</summary>
+  <div class="demo-grid">
+    <fieldset>
+      <legend>Estado de la pantalla</legend>
+      <label><input type="radio" name="demo-estado" value="datos" checked> Con datos</label>
+      <label><input type="radio" name="demo-estado" value="vacio"> Vacío (sin contactos)</label>
+      <label><input type="radio" name="demo-estado" value="cargando"> Cargando</label>
+      <label><input type="radio" name="demo-estado" value="error"> Error</label>
+    </fieldset>
+    <fieldset>
+      <legend>Banderas</legend>
+      <label><input type="checkbox" id="demo-s3"> HU-013 · columna «Comportamiento» (S3)</label>
+    </fieldset>
+    <fieldset>
+      <legend>Simulaciones</legend>
+      <label><input type="checkbox" id="demo-falla"> Error de servidor al guardar</label>
+      <label><input type="checkbox" id="demo-conc"> Comprobante concurrente al eliminar</label>
+    </fieldset>
+    <fieldset>
+      <legend>Rol y tema</legend>
+      <label>Rol
+        <select id="demo-rol"><option>Operador</option><option>Supervisor</option><option>Administrador</option></select>
+      </label>
+      <label>Tema
+        <select id="demo-tema"><option value="auto">Según el sistema</option><option value="claro">Claro</option><option value="oscuro">Oscuro</option></select>
+      </label>
+    </fieldset>
+  </div>
+  <p class="demo-tip">Pruebas sugeridas: guardar con el correo « Ventas@DistLima.example » (duplicado, RN-127/139) · nombre con «@» (RN-162) · eliminar «PAPELERÍA EL ESTUDIANTE».</p>
+</details>
+
+<header class="topbar">
+  <button class="btn btn-ghost btn-icono menu-btn" id="btn-menu" aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="sidebar">☰</button>
+  <div class="logo"><span class="logo-marca" aria-hidden="true">V</span> VenceYa</div>
+  <div class="usuario"><span class="usuario-datos"><strong>Marcela Quispe</strong> · <span id="usuario-rol">Operador</span></span>
+    <span class="empresa">Comercial Ríos S.A.C.</span></div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Navegación principal">
+    <ul>
+      <li><a href="#" data-nav="P-002 Panel de cartera">Panel de cartera</a></li>
+      <li><a href="#" data-nav="P-004 Comprobantes">Comprobantes</a></li>
+      <li><a href="#" data-nav="P-007 Avisos de cobranza">Avisos</a></li>
+      <li><a href="#" aria-current="page">Contactos</a></li>
+      <li><a href="#" data-nav="P-020 Configuración">Configuración</a></li>
+    </ul>
+  </nav>
+  <div class="backdrop" id="backdrop" hidden></div>
+
+  <main id="contenido" class="main" tabindex="-1">
+    <div class="page-head">
+      <h1>Contactos</h1>
+      <button class="btn btn-prim" id="btn-nuevo" type="button"><span aria-hidden="true">+</span> Nuevo contacto</button>
+    </div>
+    <p class="sr-only" id="anuncio" role="status" aria-live="polite"></p>
+
+    <div id="alerta-error" class="alert" role="alert" hidden>
+      <span aria-hidden="true" class="alert-ic">⚠</span>
+      <div>
+        <strong>No se pudo cargar la lista de contactos.</strong>
+        <p>Hubo un problema de conexión con el servidor. Tus datos no se han modificado. Código: CON-503.</p>
+      </div>
+      <button class="btn btn-sec" id="btn-reintentar" type="button">Reintentar</button>
+    </div>
+
+    <div class="filtros" id="filtros">
+      <div class="campo campo-buscar">
+        <label for="f-buscar">Buscar por nombre</label>
+        <div class="buscar">
+          <input id="f-buscar" type="search" autocomplete="off" placeholder="Ej.: Distribuidora">
+          <span class="buscar-ic" aria-hidden="true">🔍</span>
+        </div>
+      </div>
+      <div class="ctl">
+        <span class="ctl-label" id="lbl-estado">Estado</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lbl-estado">
+          <label><input type="radio" name="estado" value="ACTIVO" checked><span>Activos</span></label>
+          <label><input type="radio" name="estado" value="DESACTIVADO"><span>Desactivados</span></label>
+          <label><input type="radio" name="estado" value="todos"><span>Todos</span></label>
+        </div>
+      </div>
+    </div>
+
+    <p class="mov-cuenta" id="cuenta" role="status"></p>
+
+    <div class="tabla-wrap" id="tabla-wrap">
+      <table class="tabla" id="tabla">
+        <caption class="sr-only">Contactos de la empresa</caption>
+        <thead>
+          <tr>
+            <th scope="col">Nombre</th>
+            <th scope="col">Correo</th>
+            <th scope="col">Teléfono</th>
+            <th scope="col">Relación</th>
+            <th scope="col" class="col-s3" hidden>Comportamiento</th>
+            <th scope="col">Estado</th>
+            <th scope="col" class="col-acc">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="cuerpo"></tbody>
+      </table>
+    </div>
+    <div class="vacio" id="vacio" role="status" hidden></div>
+
+    <nav class="paginacion" id="paginacion" aria-label="Paginación de contactos" hidden></nav>
+    <p class="nota">La relación (cliente, proveedor o ambos) se deriva de los comprobantes; no se asigna al crear el contacto. VenceYa no solicita DNI, RUC ni datos bancarios.</p>
+  </main>
+</div>
+
+<!-- Menú de acciones (DropdownMenu) -->
+<div class="menu" id="menu" role="menu" hidden></div>
+
+<!-- P-003.D1 Nuevo / Editar contacto -->
+<dialog id="dlg-form" aria-labelledby="form-titulo" class="dlg-form">
+  <form id="form" novalidate>
+    <div class="dlg-cab">
+      <h2 id="form-titulo">Nuevo contacto</h2>
+      <button class="btn btn-ghost btn-icono" type="button" id="form-x" aria-label="Cerrar"><span aria-hidden="true">✕</span></button>
+    </div>
+    <div class="alert alert-peq" id="form-resumen" role="alert" tabindex="-1" hidden></div>
+    <div class="alert alert-peq" id="form-servidor" role="alert" hidden>
+      <span aria-hidden="true">⚠</span>
+      <div><strong>No se pudo guardar el contacto.</strong> <span>Hubo un problema de conexión con el servidor. Tus datos no se han modificado. Código: CON-500.</span></div>
+    </div>
+
+    <div class="campo">
+      <label for="c-nombre">Nombre o razón social <span class="req" aria-hidden="true">*</span></label>
+      <div class="con-contador">
+        <input id="c-nombre" name="nombre" type="text" autocomplete="off" aria-required="true" aria-describedby="c-nombre-ayuda c-nombre-error">
+        <span class="contador" id="c-nombre-cont" aria-hidden="true">0/250</span>
+      </div>
+      <span class="ayuda" id="c-nombre-ayuda">Letras, números, espacios y . , &amp; - ' ( ) /</span>
+      <span class="error" id="c-nombre-error" hidden></span>
+    </div>
+    <div class="campo">
+      <label for="c-correo">Correo electrónico <span class="req" aria-hidden="true">*</span></label>
+      <input id="c-correo" name="correo" type="text" inputmode="email" autocomplete="off" aria-required="true" aria-describedby="c-correo-ayuda c-correo-error">
+      <span class="ayuda" id="c-correo-ayuda">Se guarda en minúsculas y debe ser único en tu empresa, incluso entre contactos desactivados.</span>
+      <span class="error" id="c-correo-error" hidden></span>
+    </div>
+    <div class="campo">
+      <label for="c-tel">Teléfono (opcional)</label>
+      <input id="c-tel" name="telefono" type="tel" autocomplete="off" class="corto">
+    </div>
+    <div class="campo">
+      <label for="c-dir">Dirección (opcional)</label>
+      <input id="c-dir" name="direccion" type="text" autocomplete="off">
+    </div>
+    <p class="nota-fija" id="form-historial" hidden>Cada cambio queda registrado por campo, con valor anterior, valor nuevo, usuario y fecha.</p>
+    <p class="nota-fija">VenceYa no solicita DNI, RUC ni datos bancarios.</p>
+
+    <div class="dlg-acc">
+      <button class="btn btn-sec" type="button" id="form-cancelar">Cancelar</button>
+      <button class="btn btn-prim" type="submit" id="form-guardar">Guardar contacto</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- P-003.D2 Eliminar contacto (AlertDialog) -->
+<dialog id="dlg-elim" role="alertdialog" aria-labelledby="elim-titulo" aria-describedby="elim-texto">
+  <h2 id="elim-titulo"></h2>
+  <p id="elim-texto"></p>
+  <div class="alert alert-peq" id="elim-rechazo" role="alert" hidden></div>
+  <div class="dlg-acc" id="elim-acc"></div>
+</dialog>
+
+<dialog id="dlg-nav" aria-labelledby="dlg-titulo">
+  <h2 id="dlg-titulo">Navegación simulada</h2>
+  <p id="dlg-texto"></p>
+  <p class="ayuda">Este prototipo solo muestra la pantalla P-003.</p>
+  <div class="dlg-acc"><button class="btn btn-prim" id="dlg-cerrar" type="button">Entendido</button></div>
+</dialog>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

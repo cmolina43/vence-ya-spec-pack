@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P-006 Detalle de comprobante y cuotas · VenceYa</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+<!-- Controles del prototipo (no forman parte de la pantalla) -->
+<details class="demo" open>
+  <summary>Controles del prototipo (solo para validar con stakeholders)</summary>
+  <div class="demo-grid">
+    <fieldset>
+      <legend>Estado de la pantalla</legend>
+      <label><input type="radio" name="demo-estado" value="datos" checked> Con datos (F001-00045)</label>
+      <label><input type="radio" name="demo-estado" value="sin-pagos"> Sin pagos (editable)</label>
+      <label><input type="radio" name="demo-estado" value="anulado"> Comprobante anulado</label>
+      <label><input type="radio" name="demo-estado" value="cargando"> Cargando</label>
+      <label><input type="radio" name="demo-estado" value="error"> Error</label>
+    </fieldset>
+    <fieldset>
+      <legend>Rol y fecha</legend>
+      <label class="campo-demo">Rol
+        <select id="demo-rol">
+          <option value="OPERADOR">Operador</option>
+          <option value="SUPERVISOR" selected>Supervisor</option>
+          <option value="ADMINISTRADOR">Administrador</option>
+        </select>
+      </label>
+      <label class="campo-demo">Hoy es
+        <select id="demo-hoy">
+          <option value="2026-11-09" selected>2026-11-09</option>
+          <option value="2027-01-25">2027-01-25 (cuota 2 vencida)</option>
+          <option value="2027-02-10">2027-02-10 (cuotas 2 y 3 vencidas)</option>
+        </select>
+      </label>
+    </fieldset>
+    <fieldset>
+      <legend>Funcionalidades Should</legend>
+      <label><input type="checkbox" id="demo-s1" checked> S1 Reprogramación (fecha efectiva)</label>
+      <label><input type="checkbox" id="demo-s4"> S4 Historial</label>
+    </fieldset>
+    <fieldset>
+      <legend>Simulaciones</legend>
+      <label><input type="checkbox" id="demo-fallo"> Fallo de servidor al guardar</label>
+      <label><input type="checkbox" id="demo-conc"> Otro usuario cobra antes (próximo pago)</label>
+    </fieldset>
+    <fieldset>
+      <legend>Otros</legend>
+      <label class="campo-demo">Tema
+        <select id="demo-tema"><option value="auto">Según el sistema</option><option value="claro">Claro</option><option value="oscuro">Oscuro</option></select>
+      </label>
+      <button class="btn btn-sec" type="button" id="demo-reset">Restablecer datos</button>
+    </fieldset>
+  </div>
+  <p class="demo-tip">Pruebas sugeridas: registrar un pago de «1,000» (formato inválido) y «400» · «Usar saldo completo» · anular el pago de US$ 400.00 como Supervisor (el Operador no ve «Anular») · intentar «Anular comprobante» con pagos vigentes (error) y luego anular todos los pagos · cambiar «Hoy es» para ver cuotas VENCIDAS con días de atraso · apagar S1 para ocultar fecha efectiva, marca y «Reprogramar».</p>
+</details>
+
+<header class="topbar">
+  <button class="btn btn-ghost btn-icono menu-btn" id="btn-menu" aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="sidebar">☰</button>
+  <div class="logo"><span class="logo-marca" aria-hidden="true">V</span> VenceYa</div>
+  <div class="usuario"><span class="usuario-datos" id="usuario-datos"><strong>Ana Torres</strong> · Supervisor</span>
+    <span class="empresa">Comercial Ríos S.A.C.</span></div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Navegación principal">
+    <ul>
+      <li><a href="#" data-nav="P-002 Panel de cartera">Panel de cartera</a></li>
+      <li><a href="#" aria-current="page">Comprobantes</a></li>
+      <li><a href="#" data-nav="P-007 Avisos de cobranza">Avisos</a></li>
+      <li><a href="#" data-nav="P-003 Contactos">Contactos</a></li>
+      <li><a href="#" data-nav="P-020 Configuración">Configuración</a></li>
+    </ul>
+  </nav>
+  <div class="backdrop" id="backdrop" hidden></div>
+
+  <main id="contenido" class="main" tabindex="-1">
+    <p class="sr-only" id="anuncio" role="status" aria-live="polite"></p>
+    <div id="vista" style="display: contents"></div>
+  </main>
+</div>
+
+<dialog id="dlg" aria-labelledby="dlg-t"></dialog>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

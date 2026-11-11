@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P-008 Bandeja de avisos · VenceYa</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+<!-- Controles del prototipo (no forman parte de la pantalla) -->
+<details class="demo" open>
+  <summary>Controles del prototipo (solo para validar con stakeholders)</summary>
+  <div class="demo-grid">
+    <fieldset>
+      <legend>Estado de la pantalla</legend>
+      <label><input type="radio" name="demo-estado" value="datos" checked> Con datos</label>
+      <label><input type="radio" name="demo-estado" value="vacio"> Vacío (sin avisos)</label>
+      <label><input type="radio" name="demo-estado" value="cargando"> Cargando</label>
+      <label><input type="radio" name="demo-estado" value="error"> Error</label>
+    </fieldset>
+    <fieldset>
+      <legend>Simulación</legend>
+      <button class="btn btn-sec" id="demo-proceso" type="button">Simular nuevo aviso EN_PROCESO (10 s)</button>
+    </fieldset>
+    <fieldset>
+      <legend>Tema</legend>
+      <label>Tema
+        <select id="demo-tema"><option value="auto">Según el sistema</option><option value="claro">Claro</option><option value="oscuro">Oscuro</option></select>
+      </label>
+    </fieldset>
+  </div>
+  <p class="demo-tip">Ruta simulada: <code id="demo-ruta">/avisos/bandeja</code> · Pruebas sugeridas: abrir el aviso del 2026-11-09 08:20 (detalle con Para, Copia y Responder a) · filtrar Resultado «No Enviado» · buscar «textiles» · escribir una fecha inválida o Desde posterior a Hasta · simular un aviso EN_PROCESO y esperar a que venza el plazo (RN-158) · reducir la ventana a menos de 768 px (el detalle pasa a página completa).</p>
+</details>
+
+<header class="topbar">
+  <button class="btn btn-ghost btn-icono menu-btn" id="btn-menu" aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="sidebar">☰</button>
+  <div class="logo"><span class="logo-marca" aria-hidden="true">V</span> VenceYa</div>
+  <div class="usuario"><span class="usuario-datos"><strong>Marcela Quispe</strong> · Operador</span>
+    <span class="empresa">Distribuidora Andina S.A.C.</span></div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Navegación principal">
+    <ul>
+      <li><a href="#" data-nav="P-002 Panel de cartera">Panel de cartera</a></li>
+      <li><a href="#" data-nav="P-004 Comprobantes">Comprobantes</a></li>
+      <li><a href="#" aria-current="page">Avisos</a></li>
+      <li><a href="#" data-nav="P-003 Contactos">Contactos</a></li>
+      <li><a href="#" data-nav="P-020 Configuración">Configuración</a></li>
+    </ul>
+  </nav>
+  <div class="backdrop" id="backdrop" hidden></div>
+
+  <main id="contenido" class="main" tabindex="-1">
+    <div class="page-head">
+      <h1>Bandeja de avisos</h1>
+      <button class="btn btn-sec" id="btn-cuotas" type="button"><span aria-hidden="true">◂</span> Cuotas por avisar</button>
+    </div>
+    <p class="sr-only" id="anuncio" role="status" aria-live="polite"></p>
+
+    <div id="alerta-error" class="alert" role="alert" hidden>
+      <span aria-hidden="true" class="alert-ic">⚠</span>
+      <div>
+        <strong>No se pudo cargar la bandeja de avisos.</strong>
+        <p>Hubo un problema de conexión con el servidor. Tus avisos no se han modificado. Código: AVI-503.</p>
+      </div>
+      <button class="btn btn-sec" id="btn-reintentar" type="button">Reintentar</button>
+    </div>
+
+    <form class="filtros" id="filtros" novalidate aria-label="Filtros de la bandeja">
+      <div class="campo">
+        <label for="f-res">Resultado</label>
+        <select id="f-res">
+          <option value="todos">Todos</option>
+          <option value="ENVIADO">Enviado</option>
+          <option value="NO_ENVIADO">No Enviado</option>
+          <option value="EN_PROCESO">En proceso</option>
+        </select>
+      </div>
+      <div class="campo campo-buscar">
+        <label for="f-contacto">Contacto</label>
+        <div class="buscar">
+          <input id="f-contacto" type="search" autocomplete="off" placeholder="buscar…">
+          <span class="buscar-ic" aria-hidden="true">🔍</span>
+        </div>
+      </div>
+      <div class="campo">
+        <label for="f-desde">Desde</label>
+        <input id="f-desde" class="fecha" type="text" inputmode="numeric" autocomplete="off" placeholder="AAAA-MM-DD" maxlength="10" aria-describedby="e-desde">
+        <p class="error" id="e-desde" hidden></p>
+      </div>
+      <div class="campo">
+        <label for="f-hasta">Hasta</label>
+        <input id="f-hasta" class="fecha" type="text" inputmode="numeric" autocomplete="off" placeholder="AAAA-MM-DD" maxlength="10" aria-describedby="e-hasta">
+        <p class="error" id="e-hasta" hidden></p>
+      </div>
+      <div class="campo" style="align-self:flex-end">
+        <button class="btn btn-ghost" id="btn-limpiar" type="button">Limpiar filtros</button>
+      </div>
+    </form>
+
+    <div class="resumen" id="resumen" role="status"></div>
+
+    <div class="tabla-wrap" id="tabla-wrap">
+      <table class="tabla" id="tabla">
+        <caption class="sr-only">Intentos de aviso registrados, del más reciente al más antiguo</caption>
+        <thead>
+          <tr>
+            <th scope="col">Fecha y hora</th>
+            <th scope="col">Usuario</th>
+            <th scope="col">Contacto</th>
+            <th scope="col">Tipo</th>
+            <th scope="col" class="num">Cuotas</th>
+            <th scope="col">Resultado</th>
+          </tr>
+        </thead>
+        <tbody id="cuerpo"></tbody>
+      </table>
+    </div>
+    <div class="vacio" id="vacio" role="status" hidden></div>
+
+    <nav class="paginacion" id="paginacion" aria-label="Paginación de avisos" hidden></nav>
+    <p class="nota">Cada intento queda registrado y no se modifica después (RN-138). Los avisos nunca se envían solos: cada intento tiene un usuario responsable (RN-215). Para volver a intentar un aviso «No Enviado» usa «Cuotas por avisar» (RN-066).</p>
+  </main>
+</div>
+
+<!-- Detalle: sheet lateral en escritorio, página completa en móvil (/avisos/bandeja/:id) -->
+<dialog class="sheet" id="sheet" aria-labelledby="sheet-titulo">
+  <div class="sheet-cab">
+    <div>
+      <button class="btn btn-ghost volver" id="sheet-volver" type="button"><span aria-hidden="true">←</span> Volver a la bandeja</button>
+      <h2 id="sheet-titulo"></h2>
+    </div>
+    <button class="btn btn-ghost btn-icono" id="sheet-cerrar" type="button" aria-label="Cerrar detalle del aviso">✕</button>
+  </div>
+  <div class="sheet-cuerpo" id="sheet-cuerpo"></div>
+</dialog>
+
+<dialog id="dlg-nav" aria-labelledby="dlg-titulo">
+  <h2 id="dlg-titulo">Navegación simulada</h2>
+  <p id="dlg-texto"></p>
+  <p class="ayuda">Este prototipo solo muestra la pantalla P-008.</p>
+  <div class="dlg-acc"><button class="btn btn-prim" id="dlg-cerrar" type="button">Entendido</button></div>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>

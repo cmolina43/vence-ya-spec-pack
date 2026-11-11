@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P-005 Registrar comprobante · VenceYa</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+<!-- Controles del prototipo (no forman parte de la pantalla) -->
+<details class="demo" open>
+  <summary>Controles del prototipo (solo para validar con stakeholders)</summary>
+  <div class="demo-grid">
+    <fieldset>
+      <legend>Estado de la pantalla</legend>
+      <label><input type="radio" name="demo-estado" value="vacio" checked> Vacío (registro nuevo)</label>
+      <label><input type="radio" name="demo-estado" value="datos"> Con datos (registro)</label>
+      <label><input type="radio" name="demo-estado" value="edicion"> Edición F001-00045</label>
+      <label><input type="radio" name="demo-estado" value="bloqueada"> Edición bloqueada (con pagos)</label>
+      <label><input type="radio" name="demo-estado" value="cargando"> Cargando</label>
+      <label><input type="radio" name="demo-estado" value="error-carga"> Error al cargar</label>
+    </fieldset>
+    <fieldset>
+      <legend>Respuesta del servidor al guardar</legend>
+      <label><input type="radio" name="demo-srv" value="ok" checked> Éxito</label>
+      <label><input type="radio" name="demo-srv" value="error"> Error de conexión</label>
+      <label><input type="radio" name="demo-srv" value="conflicto"> Conflicto (pago registrado por otro usuario)</label>
+    </fieldset>
+    <fieldset>
+      <legend>Tema</legend>
+      <label>Tema
+        <select id="demo-tema"><option value="auto">Según el sistema</option><option value="claro">Claro</option><option value="oscuro">Oscuro</option></select>
+      </label>
+    </fieldset>
+  </div>
+  <p class="demo-tip">Pruebas sugeridas: «Con datos» y cambiar un importe (RN-016: «No cuadra», sin ajuste automático) · total US$ 0.02 y 3 cuotas (RN-122) · número F001-00044 (duplicado), F001-00046 (anulado, se puede reutilizar), F001-00045 como «Por pagar» con Importaciones Pacífico (duplicado por proveedor) o con otro proveedor (RN-004: permitido) · emisión futura · escribir «Rodríguez» en Contacto y crear uno nuevo.</p>
+</details>
+
+<header class="topbar">
+  <button class="btn btn-ghost btn-icono menu-btn" id="btn-menu" aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="sidebar">☰</button>
+  <div class="logo"><span class="logo-marca" aria-hidden="true">V</span> VenceYa</div>
+  <div class="usuario"><span class="usuario-datos"><strong>Marcela Quispe</strong> · Operador</span>
+    <span class="empresa">Comercial Ríos S.A.C.</span></div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Navegación principal">
+    <ul>
+      <li><a href="#" data-nav="P-002 Panel de cartera">Panel de cartera</a></li>
+      <li><a href="#" aria-current="page" data-nav="P-004 Comprobantes">Comprobantes</a></li>
+      <li><a href="#" data-nav="P-007 Avisos de cobranza">Avisos</a></li>
+      <li><a href="#" data-nav="P-003 Contactos">Contactos</a></li>
+      <li><a href="#" data-nav="P-020 Configuración">Configuración</a></li>
+    </ul>
+  </nav>
+  <div class="backdrop" id="backdrop" hidden></div>
+
+  <main id="contenido" class="main" tabindex="-1">
+    <nav aria-label="Migas de pan" class="migas">
+      <ol>
+        <li><a href="#" data-nav="P-004 Comprobantes" id="miga-lista">Comprobantes</a></li>
+        <li aria-current="page" id="miga-actual">Registrar</li>
+      </ol>
+    </nav>
+    <h1 id="titulo">Registrar comprobante</h1>
+    <p class="sr-only" id="anuncio" role="status" aria-live="polite"></p>
+
+    <div id="alerta-srv" class="alert" role="alert" hidden>
+      <span aria-hidden="true" class="alert-ic">⚠</span>
+      <div><strong id="alerta-srv-t"></strong><p id="alerta-srv-d"></p></div>
+      <button class="btn btn-sec" id="btn-srv-accion" type="button">Reintentar</button>
+    </div>
+
+    <div id="alerta-bloqueo" class="alert alert-peq info" role="status" hidden>
+      <span aria-hidden="true">🔒</span>
+      <div>
+        <strong>Este comprobante ya no se puede editar.</strong>
+        <p>Tiene pagos o reprogramaciones registrados (incluidos los anulados) o está anulado (RN-082). Para corregir fechas usa una reprogramación; para otros datos, anula los pagos vigentes, anula el comprobante y regístralo de nuevo.</p>
+      </div>
+    </div>
+
+    <div id="resumen-errores" class="alert alert-peq" role="alert" tabindex="-1" hidden></div>
+
+    <!-- Estado cargando -->
+    <div id="skeleton" class="cols" hidden aria-busy="true" aria-label="Cargando comprobante">
+      <div class="panel"><span class="skel" style="width:40%"></span><span class="skel" style="height:40px"></span><span class="skel" style="width:30%"></span><span class="skel" style="height:40px"></span><span class="skel" style="height:40px"></span><span class="skel" style="height:140px"></span></div>
+      <div class="panel"><span class="skel" style="width:50%"></span><span class="skel"></span><span class="skel"></span><span class="skel"></span><span class="skel" style="height:40px"></span></div>
+    </div>
+
+    <div class="cols" id="cols">
+      <form id="form" class="panel" novalidate autocomplete="off">
+        <fieldset class="grupo" id="f-sentido">
+          <legend>Tipo de comprobante <span class="req" aria-hidden="true">*</span></legend>
+          <div class="seg" role="radiogroup">
+            <label><input type="radio" name="sentido" value="Cobrar" checked> Por cobrar — me deben</label>
+            <label><input type="radio" name="sentido" value="Pagar"> Por pagar — debo</label>
+          </div>
+          <p class="ayuda" id="ayuda-sentido" hidden>El tipo no se puede cambiar al editar un comprobante.</p>
+        </fieldset>
+
+        <div class="campo">
+          <label for="contacto">Contacto <span class="req" aria-hidden="true">*</span></label>
+          <div class="combo">
+            <input id="contacto" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="lista-contactos" aria-describedby="ayuda-contacto err-contacto" placeholder="Buscar contacto activo…" autocomplete="off">
+            <span class="combo-ic" aria-hidden="true">▾</span>
+            <ul id="lista-contactos" role="listbox" aria-label="Contactos activos" hidden></ul>
+          </div>
+          <p class="ayuda" id="ayuda-contacto">Solo contactos activos de tu empresa. Busca por nombre o documento.</p>
+          <p class="error" id="err-contacto" hidden></p>
+        </div>
+
+        <div class="fila2">
+          <div class="campo">
+            <label for="numero">Número de documento <span class="req" aria-hidden="true">*</span></label>
+            <input id="numero" type="text" maxlength="60" aria-describedby="ayuda-numero err-numero" spellcheck="false">
+            <p class="ayuda" id="ayuda-numero">Sin espacios. Ej.: F001-00045</p>
+            <p class="error" id="err-numero" hidden></p>
+          </div>
+          <fieldset class="grupo">
+            <legend>Moneda <span class="req" aria-hidden="true">*</span></legend>
+            <div class="seg" role="radiogroup">
+              <label><input type="radio" name="moneda" value="S/" checked> S/</label>
+              <label><input type="radio" name="moneda" value="US$"> US$</label>
+            </div>
+            <p class="ayuda">Se conserva la moneda original; no se convierte.</p>
+          </fieldset>
+        </div>
+
+        <div class="fila2">
+          <div class="campo">
+            <label for="total">Total <span class="req" aria-hidden="true">*</span></label>
+            <div class="monto"><span class="pref" aria-hidden="true">S/</span><input id="total" type="text" inputmode="decimal" aria-describedby="ayuda-total err-total"></div>
+            <p class="ayuda" id="ayuda-total">Usa coma para miles y punto para decimales: 1,000.50</p>
+            <p class="error" id="err-total" hidden></p>
+          </div>
+          <div class="campo">
+            <label for="emision">Fecha de emisión <span class="req" aria-hidden="true">*</span></label>
+            <input id="emision" type="date" max="2026-11-11" aria-describedby="err-emision">
+            <p class="error" id="err-emision" hidden></p>
+          </div>
+        </div>
+
+        <fieldset class="grupo" id="f-modalidad">
+          <legend>Forma de pago <span class="req" aria-hidden="true">*</span></legend>
+          <div class="seg" role="radiogroup">
+            <label><input type="radio" name="modalidad" value="unico" checked> Pago único</label>
+            <label><input type="radio" name="modalidad" value="cuotas"> En cuotas</label>
+          </div>
+        </fieldset>
+
+        <div id="bloque-unico" class="campo">
+          <label for="vencunico">Fecha de vencimiento <span class="req" aria-hidden="true">*</span></label>
+          <input id="vencunico" type="date" class="corto" aria-describedby="err-vencunico">
+          <p class="error" id="err-vencunico" hidden></p>
+        </div>
+
+        <div id="bloque-cuotas" hidden>
+          <div class="fila-cant">
+            <div class="campo">
+              <label for="cantidad">Cantidad de cuotas <span class="req" aria-hidden="true">*</span> <span class="ayuda">(2 a 120)</span></label>
+              <input id="cantidad" type="text" inputmode="numeric" class="corto" aria-describedby="ayuda-max err-cantidad">
+            </div>
+            <button class="btn btn-sec" type="button" id="btn-proponer">Proponer cuotas</button>
+          </div>
+          <p class="ayuda" id="ayuda-max" aria-live="polite"></p>
+          <p class="error" id="err-cantidad" hidden></p>
+
+          <div class="tcuotas-wrap" id="tabla-cuotas" tabindex="-1">
+            <table class="tcuotas">
+              <caption class="sr-only">Cuotas</caption>
+              <thead><tr><th scope="col">N°</th><th scope="col">Vencimiento *</th><th scope="col" class="num">Importe *</th><th scope="col" class="col-quitar"><span class="sr-only">Acciones</span></th></tr></thead>
+              <tbody id="tbody-cuotas"></tbody>
+            </table>
+            <p class="vacio-cuotas" id="cuotas-vacias">Aún no hay cuotas. Indica la cantidad y pulsa «Proponer cuotas».</p>
+          </div>
+          <p class="error" id="err-cuotas-suma" hidden></p>
+          <div class="agregar" id="bloque-agregar" hidden>
+            <button class="btn btn-sec" type="button" id="btn-agregar">+ Agregar cuota</button>
+            <span class="ayuda">Puedes tener entre 1 y 120 cuotas; la suma debe igualar el total.</span>
+          </div>
+          <p class="nota-fija">La propuesta es una ayuda: puedes cambiar fechas e importes antes de guardar.</p>
+        </div>
+
+        <div class="form-acciones">
+          <button class="btn btn-sec" type="button" data-accion="cancelar">Cancelar</button>
+        </div>
+      </form>
+
+      <aside class="card-res" id="resumen" aria-label="Resumen del comprobante">
+        <h2>Resumen</h2>
+        <dl>
+          <div><dt>Total</dt><dd id="r-total">—</dd></div>
+          <div><dt>Suma de cuotas</dt><dd id="r-suma">—</dd></div>
+          <div class="r-dif"><dt>Diferencia</dt><dd id="r-dif" aria-live="polite">—</dd></div>
+          <div><dt>Cuotas</dt><dd id="r-n">0</dd></div>
+          <div><dt>Primera</dt><dd id="r-primera">—</dd></div>
+          <div><dt>Última</dt><dd id="r-ultima">—</dd></div>
+          <div id="r-version-fila" hidden><dt>Versión</dt><dd id="r-version"></dd></div>
+        </dl>
+        <button class="btn btn-prim btn-block" type="button" data-accion="guardar" id="btn-guardar">Guardar comprobante</button>
+        <button class="btn btn-sec btn-block" type="button" data-accion="cancelar">Cancelar</button>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<!-- Barra inferior (móvil / tablet) -->
+<div class="barra" id="barra">
+  <div class="barra-dif"><span>Diferencia</span><strong id="b-dif" aria-live="polite">—</strong></div>
+  <button class="btn btn-prim" type="button" data-accion="guardar" id="btn-guardar-m">Guardar</button>
+</div>
+
+<!-- Alta rápida de contacto (P-003.D1) -->
+<dialog id="dlg-contacto" class="dlg-form" aria-labelledby="dlg-contacto-t">
+  <form id="form-contacto" novalidate>
+    <div class="dlg-cab"><h2 id="dlg-contacto-t">Crear contacto</h2>
+      <button class="btn btn-ghost btn-icono" type="button" id="dlg-contacto-x" aria-label="Cerrar">✕</button></div>
+    <p class="ayuda" style="margin-bottom:12px">El contacto se creará <strong>activo</strong> y quedará seleccionado en el comprobante.</p>
+    <div class="campo">
+      <label for="c-nombre">Nombre o razón social <span class="req" aria-hidden="true">*</span></label>
+      <input id="c-nombre" type="text" maxlength="120" aria-describedby="err-c-nombre">
+      <p class="error" id="err-c-nombre" hidden></p>
+    </div>
+    <div class="campo" style="margin-top:12px">
+      <label for="c-doc">RUC o DNI <span class="ayuda">(opcional)</span></label>
+      <input id="c-doc" type="text" inputmode="numeric" aria-describedby="ayuda-c-doc err-c-doc">
+      <p class="ayuda" id="ayuda-c-doc">RUC de 11 dígitos o DNI de 8 dígitos.</p>
+      <p class="error" id="err-c-doc" hidden></p>
+    </div>
+    <div class="dlg-acc">
+      <button class="btn btn-sec" type="button" id="dlg-contacto-cancel">Cancelar</button>
+      <button class="btn btn-prim" type="submit" id="dlg-contacto-ok">Crear contacto</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Confirmar descartar -->
+<dialog id="dlg-descartar" aria-labelledby="dlg-descartar-t">
+  <h2 id="dlg-descartar-t">¿Descartar los cambios?</h2>
+  <p>Has modificado el formulario. Si sales ahora, no se guardará nada.</p>
+  <div class="dlg-acc">
+    <button class="btn btn-sec" type="button" id="desc-seguir">Seguir editando</button>
+    <button class="btn btn-peligro" type="button" id="desc-salir">Descartar y salir</button>
+  </div>
+</dialog>
+
+<!-- Guardado correcto -->
+<dialog id="dlg-ok" class="dlg-form" aria-labelledby="dlg-ok-t">
+  <h2 id="dlg-ok-t">Comprobante guardado</h2>
+  <p id="dlg-ok-d" style="margin-top:8px"></p>
+  <div id="dlg-ok-hist" hidden>
+    <h3 class="h3-peq">Historial de cambios (RN-083)</h3>
+    <ul class="hist" id="hist-lista"></ul>
+  </div>
+  <details class="api">
+    <summary>Ver datos enviados al API (simulado, RN-153)</summary>
+    <pre id="api-json"></pre>
+  </details>
+  <div class="dlg-acc">
+    <button class="btn btn-sec" type="button" id="ok-otro">Registrar otro</button>
+    <button class="btn btn-prim" type="button" id="ok-lista">Ir a Comprobantes</button>
+  </div>
+</dialog>
+
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body>
+</html>
